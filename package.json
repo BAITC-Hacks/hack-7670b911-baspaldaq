@@ -12,6 +12,7 @@
     "dev:server": "npm run dev --workspace server",
     "build": "npm run build --workspace client",
     "start": "npm run start --workspace server",
+    "prisma:deploy": "npm run prisma:deploy --workspace server",
     "prisma:generate": "npm run prisma:generate --workspace server",
     "prisma:validate": "npm run prisma:validate --workspace server"
   },
