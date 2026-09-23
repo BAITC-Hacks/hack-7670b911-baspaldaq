@@ -4,6 +4,7 @@ import { Howl } from "howler";
 import ExperienceHeader from "./ExperienceHeader.jsx";
 import TaskInput from "./TaskInput.jsx";
 import WorkspaceOverlay from "./WorkspaceOverlay.jsx";
+import { analyzeTask, answerTaskQuestion, confirmTaskFields } from "../../lib/tasksApi.js";
 
 const SpaceScene = lazy(() => import("./SpaceScene.jsx"));
 
@@ -12,6 +13,12 @@ export default function BaspaldaqExperience() {
   const [milestone, setMilestone] = useState("ready");
   const [taskIdea, setTaskIdea] = useState("");
   const [draftIdea, setDraftIdea] = useState("");
+  const [task, setTask] = useState(null);
+  const [requestError, setRequestError] = useState("");
+  const [taskError, setTaskError] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [flightArrived, setFlightArrived] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [sceneKey, setSceneKey] = useState(0);
   const soundRef = useRef(null);
@@ -32,17 +39,29 @@ export default function BaspaldaqExperience() {
   }, []);
 
   const finishFlight = useCallback(() => {
-    setPhase("arrived");
-    setMilestone("system");
+    setFlightArrived(true);
 
     if (soundRef.current?.playing()) {
       soundRef.current.fade(soundRef.current.volume(), 0.08, 900);
     }
   }, []);
 
-  function handleSubmit(idea) {
+  useEffect(() => {
+    if (phase === "flight" && flightArrived && task && !isAnalyzing) {
+      setPhase("arrived");
+      setMilestone("system");
+    }
+  }, [flightArrived, isAnalyzing, phase, task]);
+
+  async function handleSubmit(idea) {
     const normalizedIdea = idea.trim();
     setTaskIdea(normalizedIdea);
+    setDraftIdea(normalizedIdea);
+    setRequestError("");
+    setTaskError("");
+    setTask(null);
+    setFlightArrived(false);
+    setIsAnalyzing(true);
     setMilestone("descent");
     setPhase("flight");
 
@@ -50,6 +69,18 @@ export default function BaspaldaqExperience() {
       soundRef.current?.stop();
       soundRef.current?.volume(0.64);
       soundRef.current?.play();
+    }
+
+    try {
+      const analyzedTask = await analyzeTask(normalizedIdea);
+      setTask(analyzedTask);
+    } catch (error) {
+      soundRef.current?.stop();
+      setRequestError(error.message);
+      setPhase("entry");
+      setFlightArrived(false);
+    } finally {
+      setIsAnalyzing(false);
     }
   }
 
@@ -59,8 +90,37 @@ export default function BaspaldaqExperience() {
     setMilestone("ready");
     setTaskIdea("");
     setDraftIdea("");
+    setTask(null);
+    setRequestError("");
+    setTaskError("");
+    setFlightArrived(false);
+    setIsAnalyzing(false);
+    setIsSaving(false);
     setSceneKey((value) => value + 1);
     window.requestAnimationFrame(() => document.getElementById("task-idea")?.focus());
+  }
+
+  async function runTaskUpdate(update) {
+    if (!task?.id) return;
+    setIsSaving(true);
+    setTaskError("");
+    try {
+      setTask(await update(task.id));
+      return true;
+    } catch (error) {
+      setTaskError(error.message);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleAnswer(questionId, answer) {
+    return runTaskUpdate((taskId) => answerTaskQuestion(taskId, questionId, answer));
+  }
+
+  function handleConfirm(fields) {
+    return runTaskUpdate((taskId) => confirmTaskFields(taskId, fields));
   }
 
   return (
@@ -75,7 +135,7 @@ export default function BaspaldaqExperience() {
           key={sceneKey}
           phase={phase}
           reducedMotion={Boolean(shouldReduceMotion)}
-          rocketVisible={phase !== "entry" || draftIdea.trim().length > 0}
+          rocketVisible={phase !== "entry"}
           onArrive={finishFlight}
           onMilestone={setMilestone}
         />
@@ -115,7 +175,11 @@ export default function BaspaldaqExperience() {
                 </p>
               </div>
 
-              <TaskInput onSubmit={handleSubmit} onValueChange={setDraftIdea} />
+              <TaskInput
+                onSubmit={handleSubmit}
+                initialValue={draftIdea}
+                requestError={requestError}
+              />
 
               <div className="entry-caption">
                 <span>AI не добавляет факты за вас</span>
@@ -133,7 +197,11 @@ export default function BaspaldaqExperience() {
               exit={{ opacity: 0 }}
             >
               <span className="flight-hud-label">
-                {milestone === "turn" ? "Манёвр к системе" : "Спуск к структуре"}
+                {isAnalyzing
+                  ? "Анализируем описание"
+                  : milestone === "turn"
+                    ? "Манёвр к системе"
+                    : "Спуск к структуре"}
               </span>
               <span className="flight-line" aria-hidden="true" />
               <span className="flight-hud-idea">{taskIdea}</span>
@@ -143,7 +211,14 @@ export default function BaspaldaqExperience() {
 
         <AnimatePresence>
           {phase === "arrived" && (
-            <WorkspaceOverlay idea={taskIdea} onReset={handleReset} />
+              <WorkspaceOverlay
+                task={task}
+                isSaving={isSaving}
+                error={taskError}
+                onAnswer={handleAnswer}
+                onConfirm={handleConfirm}
+                onReset={handleReset}
+              />
           )}
         </AnimatePresence>
       </main>

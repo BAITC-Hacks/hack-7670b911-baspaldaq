@@ -468,28 +468,34 @@ button:not(:disabled) {
   position: fixed;
   z-index: 9;
   inset: 0;
-  pointer-events: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: 96px 0 54px;
+  overflow: hidden;
+  background: rgba(5, 8, 12, 0.16);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .workspace-divider {
   position: absolute;
-  top: 98px;
-  bottom: 0;
-  left: 45%;
+  z-index: 2;
+  top: 96px;
+  bottom: 54px;
+  left: 50%;
   width: 1px;
   background: var(--line);
   transform-origin: top;
 }
 
 .task-stack {
-  position: absolute;
-  top: 50%;
-  left: 7vw;
-  width: min(354px, 32vw);
-  height: 500px;
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  margin: 0 3.2vw 0 3.2vw;
   color: #11131a;
-  translate: 0 -46%;
   transform-origin: center;
+  pointer-events: auto;
 }
 
 .stack-shadow,
@@ -513,7 +519,7 @@ button:not(:disabled) {
 
 .task-sheet {
   display: flex;
-  padding: 25px 27px 30px;
+  padding: 30px 34px 34px;
   overflow: hidden;
   flex-direction: column;
   background: var(--lavender);
@@ -539,16 +545,16 @@ button:not(:disabled) {
   display: flex;
   justify-content: space-between;
   color: rgba(17, 19, 26, 0.64);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 720;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .sheet-label {
-  margin: 74px 0 10px;
+  margin: 30px 0 10px;
   color: rgba(17, 19, 26, 0.56);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 720;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -558,30 +564,30 @@ button:not(:disabled) {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  font-size: 26px;
+  font-size: 36px;
   font-weight: 620;
   letter-spacing: 0;
   line-height: 1.15;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: 2;
 }
 
 .sheet-readiness {
   display: flex;
-  margin-top: auto;
+  margin-top: 14px;
   align-items: baseline;
   gap: 8px;
 }
 
 .sheet-readiness strong {
-  font-size: 76px;
+  font-size: 68px;
   font-weight: 620;
   line-height: 0.9;
 }
 
 .sheet-readiness span {
   color: rgba(17, 19, 26, 0.62);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sheet-scale {
@@ -597,13 +603,116 @@ button:not(:disabled) {
   border-radius: 1px;
 }
 
+.sheet-scale span.is-partial {
+  background: rgba(17, 19, 26, 0.52);
+}
+
+.sheet-scale span.is-complete {
+  background: #171a22;
+}
+
+.task-fields {
+  display: flex;
+  min-height: 0;
+  margin-top: 20px;
+  overflow: auto;
+  flex: 1;
+  flex-direction: column;
+  gap: 15px;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(17, 19, 26, 0.42) transparent;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+
+.task-field {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.task-field-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-field-heading > label:first-child {
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.field-confirm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.field-confirm-toggle input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: #246bfd;
+}
+
+.task-field textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 10px;
+  color: #171a22;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(17, 19, 26, 0.16);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.task-field textarea::placeholder {
+  color: rgba(17, 19, 26, 0.45);
+}
+
+.field-evidence {
+  overflow: hidden;
+  color: rgba(17, 19, 26, 0.58);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.field-save,
+.clarification-form button {
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.field-save {
+  position: sticky;
+  bottom: 0;
+  color: #fff;
+  background: #246bfd;
+}
+
+.field-save:disabled,
+.clarification-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .lime-note {
   position: absolute;
   z-index: 5;
-  right: -74px;
-  bottom: 58px;
+  right: 16px;
+  bottom: 16px;
   display: flex;
-  width: 292px;
+  width: min(292px, calc(100% - 32px));
   min-height: 78px;
   padding: 14px 18px;
   flex-direction: column;
@@ -628,17 +737,23 @@ button:not(:disabled) {
 }
 
 .system-copy {
-  position: absolute;
-  z-index: 4;
-  top: 126px;
-  left: calc(45% + 54px);
-  max-width: 410px;
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+  height: 100%;
+  margin: 0 3.2vw 0 3.2vw;
+  overflow: auto;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(225, 238, 240, 0.36) transparent;
+  scrollbar-width: thin;
+  touch-action: pan-y;
 }
 
 .system-copy p {
   margin: 0 0 10px;
   color: var(--lime);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 720;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -646,7 +761,7 @@ button:not(:disabled) {
 
 .system-copy h2 {
   margin: 0;
-  font-size: 30px;
+  font-size: 38px;
   font-weight: 590;
   letter-spacing: 0;
 }
@@ -655,14 +770,122 @@ button:not(:disabled) {
   display: block;
   margin-top: 9px;
   color: var(--paper-muted);
+  font-size: 14px;
+}
+
+.dimension-breakdown {
+  display: grid;
+  margin-top: 18px;
+  gap: 0;
+}
+
+.dimension-row {
+  display: flex;
+  min-height: 38px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--paper-muted);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.dimension-row strong {
+  color: var(--paper);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.clarification-list {
+  display: grid;
+  margin-top: 24px;
+  gap: 16px;
+}
+
+.clarification-list > p {
+  margin: 0;
+  color: var(--lime);
   font-size: 12px;
+  font-weight: 720;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.clarification-item {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.clarification-item h3 {
+  display: flex;
+  margin: 0 0 9px;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 580;
+  line-height: 1.45;
+}
+
+.clarification-item h3 span {
+  margin: 0;
+  color: var(--lime);
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.clarification-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.clarification-form textarea {
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 12px;
+  color: var(--paper);
+  background: rgba(8, 11, 16, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.clarification-form textarea:focus {
+  border-color: rgba(66, 149, 255, 0.78);
+  outline: 0;
+}
+
+.clarification-form textarea::placeholder {
+  color: rgba(240, 242, 239, 0.42);
+}
+
+.clarification-form button {
+  color: #fff;
+  background: #246bfd;
+}
+
+.questions-complete,
+.task-error {
+  margin: 0;
+  color: var(--paper-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.task-error {
+  margin-top: 14px;
+  color: var(--danger);
 }
 
 .workspace-back {
-  position: absolute;
+  position: fixed;
   z-index: 6;
-  bottom: 34px;
-  left: 7vw;
+  bottom: 18px;
+  left: 3.2vw;
   display: inline-flex;
   padding: 10px 0;
   align-items: center;
@@ -720,23 +943,12 @@ button:not(:disabled) {
     font-size: 56px;
   }
 
-  .task-stack {
-    left: 5vw;
-    width: min(330px, 35vw);
-    height: 470px;
-  }
-
   .workspace-back {
-    left: 5vw;
+    left: 3.2vw;
   }
 
   .lime-note {
-    right: -42px;
-    width: 250px;
-  }
-
-  .system-copy {
-    left: calc(45% + 34px);
+    width: min(250px, calc(100% - 32px));
   }
 }
 
@@ -831,62 +1043,103 @@ button:not(:disabled) {
   }
 
   .workspace-divider {
-    top: 54%;
-    bottom: auto;
-    left: 0;
-    width: 100%;
-    height: 1px;
-    transform-origin: left;
+    display: none;
+  }
+
+  .workspace-overlay {
+    display: block;
+    padding: 92px 0 24px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-color: rgba(225, 238, 240, 0.36) transparent;
+    scrollbar-width: thin;
+    touch-action: pan-y;
   }
 
   .task-stack {
-    top: 116px;
-    left: 50%;
-    width: min(330px, calc(100% - 44px));
-    height: 390px;
-    translate: -50% 0;
+    width: auto;
+    height: max(440px, 66vh);
+    margin: 0 5vw 54px;
   }
 
   .task-sheet {
-    padding: 20px 22px 24px;
+    padding: 20px 20px 24px;
   }
 
   .sheet-label {
-    margin-top: 40px;
+    margin-top: 22px;
+    font-size: 10px;
   }
 
   .task-sheet h1 {
-    font-size: 22px;
-    -webkit-line-clamp: 4;
+    font-size: 27px;
+    -webkit-line-clamp: 2;
   }
 
   .sheet-readiness strong {
-    font-size: 58px;
+    font-size: 52px;
+  }
+
+  .task-fields {
+    margin-top: 16px;
+    gap: 12px;
+  }
+
+  .task-field-heading > label:first-child {
+    font-size: 11px;
+  }
+
+  .task-field textarea {
+    min-height: 36px;
+    padding: 8px;
+    font-size: 11px;
+  }
+
+  .dimension-breakdown {
+    margin-top: 12px;
+  }
+
+  .dimension-row {
+    min-height: 32px;
+    font-size: 11px;
+  }
+
+  .clarification-list {
+    margin-top: 18px;
+    gap: 12px;
+  }
+
+  .clarification-item h3 {
+    font-size: 14px;
   }
 
   .lime-note {
-    right: -8px;
-    bottom: 34px;
-    width: 238px;
-    min-height: 66px;
+    right: 14px;
+    bottom: 14px;
+    width: min(238px, calc(100% - 28px));
+    min-height: 62px;
   }
 
   .system-copy {
-    top: auto;
-    right: 20px;
-    bottom: 34px;
-    left: 20px;
-    max-width: none;
+    width: auto;
+    height: auto;
+    max-height: none;
+    margin: 0 5vw 34px;
+    overflow: visible;
   }
 
   .system-copy h2 {
-    font-size: 24px;
+    font-size: 30px;
   }
 
   .workspace-back {
-    top: 76px;
-    bottom: auto;
-    left: 20px;
+    position: sticky;
+    bottom: 0;
+    left: auto;
+    margin: 0 5vw 0;
+    padding: 12px 0;
+    background: var(--ink);
   }
 
   .planet-label {
@@ -904,12 +1157,8 @@ button:not(:disabled) {
     margin-top: 18px;
   }
 
-  .task-stack {
-    height: 420px;
-  }
-
   .sheet-label {
-    margin-top: 42px;
+    margin-top: 18px;
   }
 }
 

@@ -6,14 +6,14 @@ import { motion } from "motion/react";
 
 const MIN_LENGTH = 12;
 
-export default function TaskInput({ onSubmit, onValueChange }) {
+export default function TaskInput({ onSubmit, initialValue, requestError }) {
   const textareaRef = useRef(null);
   const {
     register,
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm({ defaultValues: { idea: "" } });
+  } = useForm({ defaultValues: { idea: initialValue || "" } });
   const idea = watch("idea");
   const { ref, ...ideaField } = register("idea", {
     required: "Опишите задачу одним предложением",
@@ -21,10 +21,7 @@ export default function TaskInput({ onSubmit, onValueChange }) {
       value: MIN_LENGTH,
       message: "Добавьте немного контекста — минимум 12 символов",
     },
-    onChange: (event) => {
-      resizeTextarea(event.currentTarget);
-      onValueChange(event.currentTarget.value);
-    },
+    onChange: (event) => resizeTextarea(event.currentTarget),
   });
 
   function resizeTextarea(element) {
@@ -78,6 +75,11 @@ export default function TaskInput({ onSubmit, onValueChange }) {
       {errors.idea && (
         <span className="composer-error" id="task-error" role="alert">
           {errors.idea.message}
+        </span>
+      )}
+      {requestError && (
+        <span className="composer-error" role="alert">
+          {requestError}
         </span>
       )}
     </motion.form>

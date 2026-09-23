@@ -6,3 +6,71 @@ datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
+
+model Task {
+  id          String                   @id @default(cuid())
+  description String
+  score       Int                      @default(0)
+  level       String                   @default("draft")
+  fields      TaskField[]
+  dimensions  TaskDimension[]
+  questions   ClarificationQuestion[]
+  answers     ClarificationAnswer[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+}
+
+model TaskField {
+  id         String   @id @default(cuid())
+  taskId     String
+  key        String
+  value      String?
+  status     String   @default("pending")
+  provenance String   @default("initial_description")
+  sourceId   String?
+  evidence   String?
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([taskId, key])
+  @@index([taskId, status])
+}
+
+model TaskDimension {
+  id       String @id @default(cuid())
+  taskId   String
+  key      String
+  aiStatus String @default("missing")
+  evidence String @default("[]")
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, key])
+}
+
+model ClarificationQuestion {
+  id                String              @id @default(cuid())
+  taskId            String
+  question          String
+  targetDimensions  String
+  reason            String
+  status            String              @default("open")
+  task              Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  answer            ClarificationAnswer?
+  createdAt         DateTime            @default(now())
+  answeredAt        DateTime?
+
+  @@index([taskId, status])
+}
+
+model ClarificationAnswer {
+  id         String                @id @default(cuid())
+  taskId     String
+  questionId String                @unique
+  answer     String
+  task       Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  question   ClarificationQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime              @default(now())
+
+  @@index([taskId])
+}
