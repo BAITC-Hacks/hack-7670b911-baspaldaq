@@ -73,6 +73,7 @@ export function TaskReviewPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const isDirty = Boolean(query.data) && (topic !== (query.data.topic || "") || FIELD_KEYS.some((key) => (values[key] || "") !== (query.data.fields.find((field) => field.key === key)?.value || "")));
 
   useEffect(() => {
     if (!query.data) return;
@@ -97,7 +98,7 @@ export function TaskReviewPage() {
     {task.status === "PUBLISHED" ? <TaskFields task={task} /> : <form className="market-edit-form" onSubmit={(event) => { event.preventDefault(); act("save", () => saveTaskCard(taskId, FIELD_KEYS.map((key) => ({ key, value: values[key] || "" })), topic || null)); }}>
       <label className="market-field market-field--wide"><span>Тема каталога</span><input value={topic} onChange={(event) => setTopic(event.target.value)} maxLength={80} placeholder="Например, производство" disabled={Boolean(busy) || task.status === "PUBLISHED"} /></label>
       {FIELD_KEYS.map((key) => { const field = task.fields.find((item) => item.key === key); return <label className={`market-field ${["context", "need", "expectedResult"].includes(key) ? "market-field--wide" : ""}`} key={key}><span>{field?.label || FIELD_LABELS[key]}</span><textarea value={values[key] || ""} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))} rows={key === "title" ? 2 : 4} maxLength={1000} disabled={Boolean(busy)} placeholder="Не указано" />{field?.evidence?.[0]?.quote && field.provenance !== "manual_edit" && <small>Источник: «{field.evidence[0].quote}»</small>}</label>; })}
-      {task.status !== "PUBLISHED" && <div className="market-form-actions"><button className="market-button" type="submit" disabled={Boolean(busy)}>{busy === "save" ? "Сохраняем…" : "Сохранить изменения"}</button><button className="market-button" type="button" disabled={Boolean(busy) || task.status === "CONFIRMED"} onClick={() => act("confirm", () => confirmTask(taskId))}>{busy === "confirm" ? "Подтверждаем…" : "Подтвердить карточку"}</button><button className="market-button market-button--accent" type="button" disabled={Boolean(busy) || task.status !== "CONFIRMED"} onClick={() => act("publish", () => publishTask(taskId))}>{busy === "publish" ? "Публикуем…" : "Опубликовать"}</button></div>}
+      {task.status !== "PUBLISHED" && <div className="market-form-actions"><button className="market-button" type="submit" disabled={Boolean(busy) || !isDirty}>{busy === "save" ? "Сохраняем…" : "Сохранить изменения"}</button><button className="market-button" type="button" disabled={Boolean(busy) || isDirty || task.status === "CONFIRMED"} onClick={() => act("confirm", () => confirmTask(taskId))}>{busy === "confirm" ? "Подтверждаем…" : "Подтвердить карточку"}</button><button className="market-button market-button--accent" type="button" disabled={Boolean(busy) || isDirty || task.status !== "CONFIRMED"} onClick={() => act("publish", () => publishTask(taskId))}>{busy === "publish" ? "Публикуем…" : "Опубликовать"}</button></div>}
     </form>}
     {error && <p className="market-error" role="alert">{error}</p>}{notice && <p className="market-success" role="status">{notice}</p>}
     {task.status === "PUBLISHED" && <div className="market-form-actions"><Link className="market-button" to={`/tasks/${task.id}`}>Посмотреть в каталоге</Link><Link className="market-button market-button--accent" to={`/business/tasks/${task.id}/proposals`}>Предложения команд</Link></div>}
@@ -119,7 +120,8 @@ export function TaskDetailsPage() {
 
 export function TeamPage() {
   const [searchParams] = useSearchParams();
-  const next = searchParams.get("next");
+  const nextParam = searchParams.get("next");
+  const next = nextParam?.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
   const [teamId, setTeamId] = useState(() => window.localStorage.getItem("baspaldaq:team-id"));
   const query = useQuery({ queryKey: ["team", teamId], queryFn: () => getTeam(teamId), enabled: Boolean(teamId), retry: false });
   const [form, setForm] = useState({ name: "", interests: "", skills: "", technologies: "" });

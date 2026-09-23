@@ -6,6 +6,7 @@ import {
   answerInputSchema,
   analyzeBusinessSources,
   taskAnalysisSchema,
+  mergeConfirmedManualEvidence,
 } from "./taskAnalysis.js";
 
 const source = { id: "description", text: "Нам нужен сервис для магазинов." };
@@ -73,4 +74,14 @@ test("analysis returns at least three adaptive questions for multiple gaps", asy
   assert.ok(result.questions.length >= 3);
   assert.ok(result.questions.some(({ targetDimensions }) => targetDimensions.includes("USERS")));
   assert.ok(result.questions.every(({ targetDimensions }) => targetDimensions.length > 0));
+});
+
+test("confirmed manual card facts retain readiness evidence after a new AI analysis", () => {
+  const merged = mergeConfirmedManualEvidence(
+    { status: "missing", evidence: [] },
+    "BUSINESS_CONNECTION",
+    [{ key: "interactionFormat", value: "Еженедельная встреча", status: "confirmed", provenance: "manual_edit" }],
+  );
+  assert.equal(merged.status, "partial");
+  assert.deepEqual(merged.evidence, [{ sourceId: "manual_edit:interactionFormat", quote: "Еженедельная встреча" }]);
 });

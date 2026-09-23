@@ -15,7 +15,8 @@
     "prisma:deploy": "npm run prisma:deploy --workspace server",
     "prisma:generate": "npm run prisma:generate --workspace server",
     "prisma:validate": "npm run prisma:validate --workspace server",
-    "test:ui": "node scripts/visual-smoke.mjs"
+    "test:ui": "node scripts/visual-smoke.mjs",
+    "db:seed": "npm run db:seed --workspace server"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",

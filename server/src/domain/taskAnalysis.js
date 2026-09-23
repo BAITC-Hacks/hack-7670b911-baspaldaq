@@ -41,6 +41,19 @@ export const DIMENSION_FIELDS = Object.freeze({
   BUSINESS_CONNECTION: ["contact", "interactionFormat"],
 });
 
+export function mergeConfirmedManualEvidence(dimension, dimensionKey, fields) {
+  const keys = DIMENSION_FIELDS[dimensionKey];
+  const manual = keys.map((key) => fields.find((field) => field.key === key && field.status === "confirmed" && field.provenance === "manual_edit" && field.value)).filter(Boolean);
+  if (manual.length === 0) return dimension;
+  return {
+    status: manual.length === keys.length ? "complete" : dimension.status === "missing" ? "partial" : dimension.status,
+    evidence: [
+      ...dimension.evidence,
+      ...manual.map((field) => ({ sourceId: `manual_edit:${field.key}`, quote: field.value })),
+    ],
+  };
+}
+
 const dimensionKeys = DIMENSIONS.map(({ key }) => key);
 const evidenceSchema = z.object({
   sourceId: z.string().min(1).max(120),

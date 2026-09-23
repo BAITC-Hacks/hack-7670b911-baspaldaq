@@ -85,9 +85,7 @@ function AnswerComposer({ question, isSaving, onAnswer, onSkip }) {
         СЛЕДУЮЩИЙ ШАГ
       </div>
       <h2>{question.question}</h2>
-      <p className="question-guidance">
-        {GUIDANCE[question.targetDimensions[0]] || "Ответьте так, как объяснили бы коллеге. Идеальная формулировка не нужна."}
-      </p>
+      <details className="question-aid"><summary>Подсказка к вопросу{question.potentialGain > 0 ? ` · до +${question.potentialGain}` : ""}</summary><p>{question.reason}</p><p>{GUIDANCE[question.targetDimensions[0]] || "Ответьте так, как объяснили бы коллеге."}</p></details>
       <form className="conversation-composer" onSubmit={submit}>
         <label className="sr-only" htmlFor={`reply-${question.id}`}>Ваш ответ</label>
         <textarea
@@ -175,6 +173,7 @@ export default function WorkspaceOverlay({
   onAnswer,
   onSkip,
   onConfirm,
+  onAnalyzeDraft,
   onReset,
 }) {
   const activeQuestion = task.questions.find(({ status }) => status === "open");
@@ -210,7 +209,7 @@ export default function WorkspaceOverlay({
         <div className="conversation-toolbar">
           <button className="conversation-back" type="button" onClick={onReset}>
             <HugeiconsIcon icon={ArrowLeft02Icon} size={18} strokeWidth={1.7} />
-            Изменить описание
+            Новая задача
           </button>
           <Link className="conversation-back" to={`/business/tasks/${task.id}/review`}>Карточка задачи ↗</Link>
         </div>
@@ -242,7 +241,7 @@ export default function WorkspaceOverlay({
             >
               <span aria-hidden="true" />{LEVEL_LABELS[task.readiness.level] || task.readiness.level}
             </motion.span>
-            <h1>{activeQuestion ? `Уточнение ${nextQuestionNumber}` : "Карточка готова к проверке"}</h1>
+            <h1>{task.status === "PUBLISHED" ? "Задача опубликована" : activeQuestion ? `Уточнение ${nextQuestionNumber}` : "Карточка готова к проверке"}</h1>
             <div
               className="readiness-meter"
               role="progressbar"
@@ -315,9 +314,13 @@ export default function WorkspaceOverlay({
 
           {error && <div className="conversation-error" role="alert">{error}</div>}
 
-          {activeQuestion ? (
+          {task.status === "PUBLISHED" ? (
+            <div className="conversation-complete"><h2>Команды видят задачу в каталоге.</h2><p>Предложения появятся в разделе задачи.</p></div>
+          ) : task.status === "DRAFT" ? (
+            <div className="conversation-complete"><h2>Черновик сохранён</h2><p>AI-анализ можно запустить повторно, когда соединение восстановится.</p><button className="send-answer" type="button" disabled={isSaving} onClick={onAnalyzeDraft}>{isSaving ? "Анализируем…" : "Запустить анализ"}</button></div>
+          ) : activeQuestion ? (
             <AnswerComposer
-              question={{ ...activeQuestion, ref: questionRef }}
+              question={{ ...activeQuestion, ref: questionRef, potentialGain: task.readiness.missing.find(({ dimension }) => activeQuestion.targetDimensions.includes(dimension))?.potentialGain || 0 }}
               isSaving={isSaving}
               onAnswer={onAnswer}
               onSkip={onSkip}
@@ -332,8 +335,8 @@ export default function WorkspaceOverlay({
           <div ref={endRef} />
         </section>
 
-        <TaskEditor task={task} isSaving={isSaving} onConfirm={onConfirm} />
-        <Link className="review-link" to={`/business/tasks/${task.id}/review`}>Проверить карточку и опубликовать <span aria-hidden="true">↗</span></Link>
+        {task.status !== "PUBLISHED" && <TaskEditor task={task} isSaving={isSaving} onConfirm={onConfirm} />}
+        <Link className="review-link" to={task.status === "PUBLISHED" ? `/business/tasks/${task.id}/proposals` : `/business/tasks/${task.id}/review`}>{task.status === "PUBLISHED" ? "Смотреть предложения" : "Проверить карточку и опубликовать"} <span aria-hidden="true">↗</span></Link>
       </div>
     </motion.section>
   );

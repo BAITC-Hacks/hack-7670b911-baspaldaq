@@ -10,7 +10,8 @@
     "prisma:migrate": "node --env-file=../.env node_modules/prisma/build/index.js migrate dev",
     "prisma:deploy": "node --env-file=../.env node_modules/prisma/build/index.js migrate deploy",
     "prisma:generate": "node --env-file=../.env node_modules/prisma/build/index.js generate",
-    "prisma:validate": "node --env-file=../.env node_modules/prisma/build/index.js validate"
+    "prisma:validate": "node --env-file=../.env node_modules/prisma/build/index.js validate",
+    "db:seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.73",

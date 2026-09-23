@@ -29,7 +29,7 @@ export default function ExperienceHeader({
         />
       </button>
 
-      <nav className="experience-nav" aria-label="Разделы"><Link to="/business">Мои задачи</Link><Link to="/catalog">Каталог</Link><Link to="/team">Команда</Link></nav>
+      <nav className="experience-nav" aria-label="Выбор роли"><Link to="/business/new">Для бизнеса</Link><Link to="/catalog">Для команды</Link></nav>
 
       <button
         className="sound-toggle"

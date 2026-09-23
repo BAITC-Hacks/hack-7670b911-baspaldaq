@@ -503,6 +503,7 @@ button:not(:disabled) {
   text-decoration: none;
 }
 .load-error { position: relative; z-index: 10; padding: 140px 24px; color: var(--danger); }
+.load-status { position: relative; z-index: 10; padding: 140px 24px; color: var(--paper-muted); }
 
 .workspace-divider {
   position: absolute;
@@ -1209,6 +1210,10 @@ button:not(:disabled) {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
+.question-aid { margin: 12px 0 20px; color: var(--paper-muted); }
+.question-aid summary { width: fit-content; color: var(--cyan); cursor: pointer; font-size: 12px; font-weight: 670; }
+.question-aid p { max-width: 660px; margin: 8px 0 0; font-size: 12px; line-height: 1.55; }
 
 .next-question {
   margin-top: 25px;

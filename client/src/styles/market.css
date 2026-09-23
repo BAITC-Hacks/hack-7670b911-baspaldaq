@@ -108,9 +108,12 @@
 }
 
 @media (max-width: 640px) {
+  .experience-header { grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px; min-height: 54px; }
+  .brand-wordmark { width: 105px; height: 36px; }
+  .experience-nav { justify-self: end; }
+  .sound-toggle { width: 34px; height: 34px; }
   .experience-nav { gap: 10px; }
   .experience-nav a { font-size: 10px; }
-  .experience-nav a:first-child { display: none; }
   .market-header { padding: 12px 18px; align-items: flex-start; flex-direction: column; gap: 6px; }
   .market-header nav { width: 100%; justify-content: space-between; gap: 8px; }
   .market-header nav a { font-size: 11px; }

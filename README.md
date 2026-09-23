@@ -1,27 +1,33 @@
 # Baspaldaq
 
-Baspaldaq turns a business problem into a practical task brief. A user submits a description, sees an immediate readiness score, and improves the brief through a one-question-at-a-time conversation. The API extracts only supported facts with exact source evidence and recalculates the score after each useful answer.
+| Создание задачи | Каталог |
+| --- | --- |
+| ![Создание задачи](docs/screenshots/home.png) | ![Каталог задач](docs/screenshots/catalog.png) |
+| Карточка задачи | Предложения команд |
+| ![Карточка задачи](docs/screenshots/task-card.png) | ![Предложения команд](docs/screenshots/proposals.png) |
 
-## Architecture
+Baspaldaq turns a business problem into a published task that student teams can answer with proposals. The hackathon flow is: describe a problem, clarify it with AI, review and edit the task card, confirm and publish it, receive team proposals, and make the decision manually.
 
-- `client/` - React, Vite, Motion, and the Three.js launch experience
-- `server/` - Express 5 API, Prisma ORM, and the AI analysis workflow
-- `server/prisma/` - SQLite schema and committed Prisma migrations
-- `.env.example` - environment variable template
+## Stack
 
-OpenAI calls run only on the server. The browser communicates with `/api`; in development, Vite proxies those requests to `VITE_API_URL`.
+- React, Vite, Motion and Three.js in `client/`
+- Express 5, Prisma and SQLite in `server/`
+- OpenAI through the server only, using the AI SDK
+- Committed Prisma migrations in `server/prisma/migrations/`
 
-## Readiness And Conversation
+The browser never receives `OPENAI_API_KEY`. AI extracts only facts supported by exact quotes from the user's description, answers, or manual edits. The server computes the readiness score from seven weighted dimensions. AI questions and explanations adapt to the user's missing information, but model output is rendered as validated text and known React components, never as executable HTML.
 
-The deterministic backend score uses seven fixed weights: context and need 20, data and materials 20, expected result 15, success criteria 15, constraints 10, users 10, and business connection 10. Each dimension earns zero for missing information, half its weight for partial information, and full weight for complete information; the total is rounded to an integer. Levels are `draft` (0-39), `workable` (40-69), `ready` (70-89), and `priority` (90-100).
+## Run Locally
 
-Grounded evidence from the submitted description contributes immediately. AI output cannot assign points, and each evidence quote is checked against the original user text. After analysis, the client sees one prioritized question at a time. Each reply is checked for relevance; an unclear response gets one simpler rephrase and may then be skipped. A separate question about the project, such as its price, receives its own answer without closing the current clarification question or changing the score. Unknown prices and terms are never invented.
+Requires Node.js 20.19+ and npm 10+. `package-lock.json` locks the JavaScript dependencies; this project does not need Python's `requirements.txt`. On Windows, the fastest setup is:
 
-The editor for the ten task fields stays available below the conversation. Sound effects use the supplied `public/launch.mp3` and `public/ai-answer.mp3` files plus short browser-generated tones for accepted answers, rephrasing, skips, and level changes.
+```powershell
+.\scripts\setup.ps1 -Seed
+```
 
-## Local Setup
+Omit `-Seed` to start with an empty database. The script creates `.env` only if it is missing, installs exact dependencies with `npm ci`, generates Prisma Client, and applies migrations. It never overwrites an existing `.env`.
 
-Requirements: Node.js 20.19 or newer and npm 10 or newer.
+The equivalent manual commands are:
 
 ```powershell
 npm ci
@@ -31,29 +37,52 @@ npm run prisma:deploy
 npm run dev
 ```
 
-Set `OPENAI_API_KEY` in the ignored local `.env` before using AI analysis. Do not put the key in client variables, commit it, or share it in chat. The local SQLite URL `file:./dev.db` resolves next to `server/prisma/schema.prisma`, so the database file is `server/prisma/dev.db`.
+Set `OPENAI_API_KEY` only in the ignored local `.env`. Set `PORT`, `CLIENT_ORIGIN`, `DATABASE_URL` and `VITE_API_URL` there as needed. Vite prints the frontend URL. The API listens on `PORT`; `GET /api/health` checks the database connection. The default SQLite file is `server/prisma/dev.db`.
 
-The client URL is printed by Vite. The API listens on `PORT`, and `GET /api/health` checks both the API and its database schema.
+The role switch is in the navigation: business creates and manages tasks; student teams use the catalog and team profile. Open `/business` for tasks, `/catalog` for published tasks, and `/team` to create or update a team profile. Browser storage remembers only the selected team ID; all tasks, teams, proposals, decisions and milestone points live in SQLite.
 
-## Deployment
+## Demo Data
 
-The repository does not select or authenticate to a hosting provider. To deploy the API, use a Node.js service with persistent writable storage for SQLite and configure `PORT`, `DATABASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `AI_TIMEOUT_MS`, and `CLIENT_ORIGIN` in the host environment. Point `DATABASE_URL` at a file on the mounted persistent disk; an ephemeral application filesystem will lose SQLite data on redeploy.
-
-Use these commands in the backend service:
-
-```text
-Build: npm ci && npm run prisma:generate
-Pre-deploy migration: npm run prisma:deploy
-Start: npm start
+```powershell
+npm run db:seed
 ```
 
-For a separately hosted static client, set `VITE_API_URL` to the public API origin before `npm run build`, and set the API's `CLIENT_ORIGIN` to the exact public client origin. The client build is written to `client/dist/`.
+This idempotent command adds five synthetic drafts, five published task cards, five synthetic teams and five proposals. Their IDs begin with `demo-`, and their prototype links are illustrative, not live team projects. It does not overwrite existing records. Production seeding requires `ALLOW_DEMO_SEED=true` explicitly.
+
+## Main API
+
+| Action | Endpoint |
+| --- | --- |
+| Save draft | `POST /api/tasks` |
+| Analyze draft | `POST /api/tasks/:id/analyze` |
+| Answer or skip | `POST /api/tasks/:id/answers` |
+| Read task/questions | `GET /api/tasks/:id`, `GET /api/tasks/:id/questions` |
+| Edit card | `PATCH /api/tasks/:id` |
+| Confirm and publish | `POST /api/tasks/:id/confirm`, `POST /api/tasks/:id/publish` |
+| Catalog | `GET /api/tasks?published=true&readiness=ready&topic=...&sort=score_desc` |
+| Teams | `GET/POST /api/teams`, `GET/PATCH /api/teams/:id` |
+| Proposals | `GET/POST /api/tasks/:id/proposals`, `GET /api/proposals/:id`, `PATCH /api/proposals/:id/status` |
+| Milestones | `GET/POST /api/tasks/:id/milestones`, `PATCH /api/milestones/:id/confirm` |
+
+Readiness is `draft` (0-39), `workable` (40-69), `ready` (70-89), or `priority` (90-100). Every published task remains in the catalog, including low-scoring ones. Proposals have `PENDING`, `ACCEPTED`, or `REJECTED` status. The business can accept several teams or none. Confirming a milestone for an accepted team awards 10 points exactly once.
 
 ## Validation
 
 ```powershell
-npm run build
-npm run test --workspace server
 npm run prisma:validate
-npm run prisma:deploy
+npm test --workspace server
+npm run build
 ```
+
+The browser test needs Microsoft Edge (or `BROWSER_EXECUTABLE`) and a local running app with at least one published task. It captures desktop and mobile screenshots in ignored `client/screenshots/`, verifies wheel scrolling, and clicks through publish, proposal, business decision, and milestone confirmation. Temporary records are removed after the test.
+
+```powershell
+$env:TEST_BASE_URL = 'http://localhost:5173'
+npm run test:ui
+```
+
+## Deployment Boundary
+
+For a separately hosted client, set `VITE_API_URL` to the public API origin at build time and `CLIENT_ORIGIN` to the exact allowed frontend origin. Use persistent writable storage for SQLite; an ephemeral disk loses data on redeploy. Run `npm run prisma:generate` and `npm run prisma:deploy` before `npm start`.
+
+This hackathon MVP intentionally has no login or authorization, as allowed by the brief. Role selection is a workflow convenience, **not access control**: proposal decisions and task edits are not protected from other visitors. Add real identity and authorization before exposing it as a production multi-tenant service.

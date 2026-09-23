@@ -22,11 +22,17 @@ async function request(path, options = {}) {
   return payload;
 }
 
-export function analyzeTask(description) {
-  return request("/tasks/analyze", {
+export async function analyzeTask(description, draftTaskId) {
+  const created = draftTaskId ? { id: draftTaskId } : (await request("/tasks", {
     method: "POST",
     body: JSON.stringify({ description }),
-  }).then(({ task }) => task);
+  })).task;
+  try {
+    return (await request(`/tasks/${encodeURIComponent(created.id)}/analyze`, { method: "POST" })).task;
+  } catch (error) {
+    error.draftTaskId = created.id;
+    throw error;
+  }
 }
 
 export function answerTaskQuestion(taskId, questionId, message) {
@@ -52,6 +58,10 @@ export function confirmTaskFields(taskId, fields) {
 
 export function getTask(taskId) {
   return request(`/tasks/${encodeURIComponent(taskId)}`).then(({ task }) => task);
+}
+
+export function analyzeExistingTask(taskId) {
+  return request(`/tasks/${encodeURIComponent(taskId)}/analyze`, { method: "POST" });
 }
 
 export function listTasks(filters = {}) {

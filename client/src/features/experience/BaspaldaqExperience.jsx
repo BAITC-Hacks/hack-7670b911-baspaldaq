@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import ExperienceHeader from "./ExperienceHeader.jsx";
 import TaskInput from "./TaskInput.jsx";
 import WorkspaceOverlay from "./WorkspaceOverlay.jsx";
-import { analyzeTask, answerTaskQuestion, confirmTaskFields, skipTaskQuestion } from "../../lib/tasksApi.js";
+import { analyzeExistingTask, analyzeTask, answerTaskQuestion, confirmTaskFields, skipTaskQuestion } from "../../lib/tasksApi.js";
 import { createExperienceAudio } from "../../lib/experienceAudio.js";
 import { useNavigate, useParams } from "react-router-dom";
 import { getTask } from "../../lib/tasksApi.js";
@@ -20,11 +20,12 @@ const LEVEL_TITLES = {
 export default function BaspaldaqExperience() {
   const navigate = useNavigate();
   const { taskId } = useParams();
-  const [phase, setPhase] = useState("entry");
+  const [phase, setPhase] = useState(taskId ? "loading" : "entry");
   const [milestone, setMilestone] = useState("ready");
   const [taskIdea, setTaskIdea] = useState("");
   const [draftIdea, setDraftIdea] = useState("");
   const [task, setTask] = useState(null);
+  const [savedDraftId, setSavedDraftId] = useState(null);
   const [requestError, setRequestError] = useState("");
   const [taskError, setTaskError] = useState("");
   const [scoreNotice, setScoreNotice] = useState("");
@@ -94,12 +95,14 @@ export default function BaspaldaqExperience() {
     }
 
     try {
-      const analyzedTask = await analyzeTask(normalizedIdea);
+      const analyzedTask = await analyzeTask(normalizedIdea, normalizedIdea === taskIdea ? savedDraftId : null);
       setTask(analyzedTask);
+      setSavedDraftId(null);
       window.localStorage.setItem("baspaldaq:last-task", analyzedTask.id);
     } catch (error) {
+      if (error.draftTaskId) setSavedDraftId(error.draftTaskId);
       audioRef.current?.stop();
-      setRequestError(error.message);
+      setRequestError(error.draftTaskId ? `${error.message} Черновик сохранён в «Мои задачи».` : error.message);
       setPhase("entry");
       setFlightArrived(false);
     } finally {
@@ -115,6 +118,7 @@ export default function BaspaldaqExperience() {
     setTaskIdea("");
     setDraftIdea("");
     setTask(null);
+    setSavedDraftId(null);
     setRequestError("");
     setTaskError("");
     setScoreNotice("");
@@ -175,6 +179,10 @@ export default function BaspaldaqExperience() {
     return runTaskUpdate((taskId) => confirmTaskFields(taskId, fields));
   }
 
+  function handleAnalyzeDraft() {
+    return runTaskUpdate((id) => analyzeExistingTask(id));
+  }
+
   return (
     <div className={`experience phase-${phase}`}>
       <a className="skip-link" href="#experience-main">
@@ -185,9 +193,9 @@ export default function BaspaldaqExperience() {
       <Suspense fallback={null}>
         <SpaceScene
           key={sceneKey}
-          phase={phase}
+          phase={phase === "loading" ? "entry" : phase}
           reducedMotion={Boolean(shouldReduceMotion)}
-          rocketVisible={phase !== "entry"}
+          rocketVisible={phase === "flight" || phase === "arrived"}
           onArrive={finishFlight}
           onMilestone={setMilestone}
         />
@@ -202,6 +210,7 @@ export default function BaspaldaqExperience() {
       />
 
       <main id="experience-main" className="experience-main">
+        {phase === "loading" && !taskError && <p className="load-status" role="status">Загружаем задачу…</p>}
         <AnimatePresence>
           {phase === "entry" && (
             <motion.section
@@ -271,6 +280,7 @@ export default function BaspaldaqExperience() {
                 onAnswer={handleAnswer}
                 onSkip={handleSkip}
                 onConfirm={handleConfirm}
+                onAnalyzeDraft={handleAnalyzeDraft}
                 onReset={handleReset}
               />
           )}

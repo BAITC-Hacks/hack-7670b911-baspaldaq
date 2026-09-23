@@ -1,3 +1,5 @@
+import { AppError } from "../errors/AppError.js";
+
 export function errorHandler(error, _request, response, next) {
   const status = Number.isInteger(error.status) ? error.status : 500;
   console.error("Baspaldaq API request failed", {
@@ -13,7 +15,7 @@ export function errorHandler(error, _request, response, next) {
   response.status(status).json({
     error: {
       code: error.code || "INTERNAL_ERROR",
-      message: error.message && status < 500 ? error.message : "Не удалось обработать запрос. Попробуйте ещё раз.",
+      message: error instanceof AppError ? error.message : "Не удалось обработать запрос. Попробуйте ещё раз.",
     },
   });
 }
