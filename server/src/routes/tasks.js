@@ -1,14 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/AppError.js";
 import { calculateReadiness, DIMENSIONS } from "../domain/readiness.js";
+import { assessConversationReply, conversationInputSchema } from "../domain/conversation.js";
 import {
   analysisInputSchema,
-  answerInputSchema,
   confirmationInputSchema,
-  DIMENSION_FIELDS,
   FIELD_KEYS,
   FIELD_LABELS,
   analyzeBusinessSources,
@@ -20,6 +18,7 @@ const taskIdSchema = z.string().min(1).max(120);
 const taskInclude = {
   fields: { orderBy: { createdAt: "asc" } },
   dimensions: true,
+  messages: { orderBy: { createdAt: "asc" } },
   questions: {
     include: { answer: true },
     orderBy: { createdAt: "asc" },
@@ -43,28 +42,32 @@ function readJson(value, fallback) {
   }
 }
 
+async function persistConversationMessages(transaction, taskId, questionId, messages) {
+  const baseTime = Date.now();
+  for (const [index, message] of messages.entries()) {
+    await transaction.taskMessage.create({
+      data: {
+        taskId,
+        questionId,
+        ...message,
+        createdAt: new Date(baseTime + index),
+      },
+    });
+  }
+}
+
 function getEffectiveDimensions(task) {
   return task.dimensions.map((dimension) => {
-    const relatedFields = DIMENSION_FIELDS[dimension.key] || [];
-    const relevantFields = task.fields.filter((field) => relatedFields.includes(field.key) && field.value);
-    const confirmedFields = relevantFields.filter((field) => field.status === "confirmed");
-    const confirmed = confirmedFields.length > 0;
-    const allFactsConfirmed = relevantFields.length > 0 && confirmedFields.length === relevantFields.length;
-    const status = !confirmed
-      ? "missing"
-      : dimension.aiStatus === "missing"
-        ? "partial"
-        : dimension.aiStatus === "complete" && !allFactsConfirmed
-          ? "partial"
-        : dimension.aiStatus;
+    const evidence = readJson(dimension.evidence, []);
+    const supportedByUserText = evidence.length > 0;
 
     return {
       key: dimension.key,
       label: DIMENSIONS.find(({ key }) => key === dimension.key)?.label || dimension.key,
-      status,
+      status: supportedByUserText ? dimension.aiStatus : "missing",
       aiStatus: dimension.aiStatus,
-      confirmed,
-      evidence: readJson(dimension.evidence, []),
+      confirmed: supportedByUserText,
+      evidence,
     };
   });
 }
@@ -74,10 +77,11 @@ async function getTaskView(database, taskId, { persistReadiness = true } = {}) {
   if (!task) return null;
 
   const dimensions = getEffectiveDimensions(task);
-  const readiness = calculateReadiness(dimensions.map(({ key, status, confirmed }) => ({
+  const readiness = calculateReadiness(dimensions.map(({ key, status, confirmed, evidence }) => ({
     key,
     status,
     confirmed,
+    evidence,
   })));
   const persisted = persistReadiness
     ? await database.task.update({
@@ -109,8 +113,18 @@ async function getTaskView(database, taskId, { persistReadiness = true } = {}) {
       question: question.question,
       targetDimensions: readJson(question.targetDimensions, []),
       status: question.status,
+      retryCount: question.retryCount,
       answer: question.answer?.answer || null,
       createdAt: question.createdAt,
+      answeredAt: question.answeredAt,
+    })),
+    messages: task.messages.map((message) => ({
+      id: message.id,
+      questionId: message.questionId,
+      role: message.role,
+      kind: message.kind,
+      content: message.content,
+      createdAt: message.createdAt,
     })),
   };
 }
@@ -198,7 +212,9 @@ tasksRouter.get("/:taskId", async (request, response) => {
 
 tasksRouter.post("/:taskId/answers", async (request, response) => {
   const taskId = parseBody(taskIdSchema, request.params.taskId);
-  const { questionId, answer } = parseBody(answerInputSchema, request.body);
+  const input = parseBody(conversationInputSchema, request.body);
+  const { questionId, skip } = input;
+  const message = input.message ?? input.answer;
   const question = await prisma.clarificationQuestion.findFirst({ where: { id: questionId, taskId } });
   if (!question) throw new AppError(404, "QUESTION_NOT_FOUND", "Вопрос не найден для этой задачи.");
   if (question.status !== "open") throw new AppError(409, "QUESTION_ALREADY_ANSWERED", "Этот вопрос уже обработан. Обновите задачу.");
@@ -209,16 +225,90 @@ tasksRouter.post("/:taskId/answers", async (request, response) => {
   });
   if (!taskRecord) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
 
+  if (skip) {
+    await prisma.$transaction(async (transaction) => {
+      await transaction.clarificationQuestion.update({
+        where: { id: questionId },
+        data: { status: "skipped" },
+      });
+      await persistConversationMessages(transaction, taskId, questionId, [
+        { role: "user", kind: "skip", content: "Пропустить вопрос" },
+        { role: "assistant", kind: "skip", content: "Хорошо, не будем задерживаться. Перейдём дальше; этот критерий пока останется в рекомендациях." },
+      ]);
+    });
+    response.json({
+      task: await getTaskView(prisma, taskId, { persistReadiness: false }),
+      outcome: { type: "skipped" },
+    });
+    return;
+  }
+
+  const targetDimensions = readJson(question.targetDimensions, []);
+  const assessment = await assessConversationReply(question, message, taskRecord.description);
+  const coversTarget = assessment.coveredDimensions.some((dimension) => targetDimensions.includes(dimension));
+
+  if (assessment.kind === "customer_question") {
+    await prisma.$transaction((transaction) => persistConversationMessages(transaction, taskId, questionId, [
+      { role: "user", kind: "customer_question", content: message },
+      { role: "assistant", kind: "customer_answer", content: assessment.reply },
+    ]));
+    response.json({
+      task: await getTaskView(prisma, taskId, { persistReadiness: false }),
+      outcome: { type: "customer_question", reply: assessment.reply, questionId },
+    });
+    return;
+  }
+
+  const answerIsUseful = assessment.kind === "answer" && assessment.sufficient && coversTarget;
+  if (!answerIsUseful) {
+    const shouldSkip = question.retryCount >= 1;
+    const reply = shouldSkip
+      ? "Не будем задерживаться на этом вопросе. Пропустим его, а готовность задачи пока останется на прежнем уровне."
+      : assessment.reply;
+
+    await prisma.$transaction(async (transaction) => {
+      const responseMessages = [
+        { role: "user", kind: "answer_attempt", content: message },
+        { role: "assistant", kind: shouldSkip ? "skip" : "clarification", content: reply },
+      ];
+      if (!shouldSkip && assessment.guidance) {
+        responseMessages.push({ role: "assistant", kind: "guidance", content: assessment.guidance });
+      }
+      await persistConversationMessages(transaction, taskId, questionId, responseMessages);
+      await transaction.clarificationQuestion.update({
+        where: { id: questionId },
+        data: shouldSkip
+          ? { status: "skipped" }
+          : {
+            question: assessment.rephrasedQuestion || question.question,
+            retryCount: { increment: 1 },
+          },
+      });
+    });
+    response.json({
+      task: await getTaskView(prisma, taskId, { persistReadiness: false }),
+      outcome: {
+        type: shouldSkip ? "skipped" : "retry",
+        reply,
+        guidance: shouldSkip ? null : assessment.guidance,
+        questionId,
+      },
+    });
+    return;
+  }
+
   const sources = [
     { id: "description", text: taskRecord.description },
     ...taskRecord.answers.map((item) => ({ id: `answer:${item.questionId}`, text: item.answer })),
-    { id: `answer:${questionId}`, text: answer },
+    { id: `answer:${questionId}`, text: message },
   ];
   const previouslyAsked = taskRecord.questions.map(({ question: text }) => text);
   const analysis = await analyzeBusinessSources(sources, previouslyAsked);
+  const previousTask = await prisma.task.findUnique({ where: { id: taskId }, include: taskInclude });
+  const previousScore = calculateReadiness(getEffectiveDimensions(previousTask)).score;
 
   const updatedTask = await prisma.$transaction(async (transaction) => {
-    await transaction.clarificationAnswer.create({ data: { taskId, questionId, answer } });
+    await transaction.clarificationAnswer.create({ data: { taskId, questionId, answer: message } });
     await transaction.clarificationQuestion.update({
       where: { id: questionId },
       data: { status: "answered", answeredAt: new Date() },
@@ -231,7 +321,14 @@ tasksRouter.post("/:taskId/answers", async (request, response) => {
     console.info("Baspaldaq readiness recalculated", { taskId, score: updatedTask.score, level: updatedTask.level });
   }
 
-  response.json({ task: updatedTask });
+  response.json({
+    task: updatedTask,
+    outcome: {
+      type: "accepted",
+      reply: "Спасибо, это помогло прояснить задачу.",
+      scoreDelta: updatedTask.readiness.score - previousScore,
+    },
+  });
 });
 
 tasksRouter.post("/:taskId/confirm", async (request, response) => {

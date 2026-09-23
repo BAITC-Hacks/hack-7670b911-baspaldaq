@@ -31,6 +31,16 @@ test("unconfirmed AI findings earn no points", () => {
   assert.equal(result.score, 0);
 });
 
+test("grounded user evidence is scored before a separate confirmation step", () => {
+  const result = calculateReadiness(DIMENSIONS.map(({ key }) => ({
+    key,
+    status: key === "USERS" ? "complete" : "missing",
+    evidence: key === "USERS" ? [{ sourceId: "description", quote: "сотрудники" }] : [],
+  })));
+  assert.equal(result.score, 10);
+  assert.equal(result.breakdown.find(({ dimension }) => dimension === "USERS").status, "complete");
+});
+
 for (const [score, level] of [
   [39, "draft"],
   [40, "workable"],

@@ -33,7 +33,8 @@ export function calculateReadiness(dimensions) {
   const dimensionMap = new Map(dimensions.map((dimension) => [dimension.key, dimension]));
   const breakdown = DIMENSIONS.map(({ key, label, weight }) => {
     const dimension = dimensionMap.get(key);
-    const status = dimension?.confirmed ? dimension.status : "missing";
+    const hasUserEvidence = dimension?.confirmed || dimension?.evidence?.length > 0;
+    const status = hasUserEvidence ? dimension.status : "missing";
     const earned = status === "complete" ? weight : status === "partial" ? weight / 2 : 0;
 
     return { dimension: key, label, earned, maximum: weight, status };
