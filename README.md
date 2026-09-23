@@ -6,6 +6,16 @@
 | Карточка задачи | Предложения команд |
 | ![Карточка задачи](docs/screenshots/task-card.png) | ![Предложения команд](docs/screenshots/proposals.png) |
 
+### Полёт и 3D-сцена
+
+| Запуск ракеты | Поворот к системе |
+| --- | --- |
+| ![Ракета после отправки описания](docs/screenshots/rocket-launch.png) | ![Поворот ракеты во время полёта](docs/screenshots/rocket-turn.png) |
+| Система планет | AI-диалог |
+| ![Планеты и ракета в Three.js](docs/screenshots/planet-system.png) | ![Уточнение задачи на фоне планет](docs/screenshots/ai-workspace.png) |
+
+Реальные десктопные кадры приложения. На отдельном снимке системы планет интерфейс временно скрыт для обзора 3D-сцены.
+
 Baspaldaq turns a business problem into a published task that student teams can answer with proposals. The hackathon flow is: describe a problem, clarify it with AI, review and edit the task card, confirm and publish it, receive team proposals, and make the decision manually.
 
 ## Stack
