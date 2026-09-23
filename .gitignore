@@ -7,11 +7,14 @@ client/dist/
 coverage/
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 *.log
-client/screenshots/

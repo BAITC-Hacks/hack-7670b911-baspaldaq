@@ -595,7 +595,7 @@ npm test --workspace server
 npm run build
 ```
 
-The browser test needs Microsoft Edge (or `BROWSER_EXECUTABLE`) and a local running app with at least one published task. It captures desktop and mobile screenshots in ignored `client/screenshots/`, verifies wheel scrolling, and clicks through publish, proposal, business decision, and milestone confirmation. Temporary records are removed after the test.
+The browser test needs Microsoft Edge (or `BROWSER_EXECUTABLE`) and a local running app with at least one published task. It captures desktop and mobile screenshots in `client/screenshots/`, verifies wheel scrolling, and clicks through publish, proposal, business decision, and milestone confirmation. These screenshots and the space-scene capture script are included in the repository. Temporary records are removed after the test.
 
 ```powershell
 $env:TEST_BASE_URL = 'http://localhost:5173'
