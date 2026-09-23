@@ -14,9 +14,11 @@
     "start": "npm run start --workspace server",
     "prisma:deploy": "npm run prisma:deploy --workspace server",
     "prisma:generate": "npm run prisma:generate --workspace server",
-    "prisma:validate": "npm run prisma:validate --workspace server"
+    "prisma:validate": "npm run prisma:validate --workspace server",
+    "test:ui": "node scripts/visual-smoke.mjs"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.5",
+    "playwright-core": "^1.63.0"
   }
 }

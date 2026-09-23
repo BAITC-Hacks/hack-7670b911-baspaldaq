@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft02Icon, ArrowUpRightIcon } from "@hugeicons/core-free-icons";
 import { AnimatePresence, motion } from "motion/react";
+import { Link } from "react-router-dom";
 
 const FIELD_ORDER = [
   "title",
@@ -98,14 +99,14 @@ function AnswerComposer({ question, isSaving, onAnswer, onSkip }) {
           maxLength={2000}
           disabled={isSaving}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
             }
           }}
         />
         <div className="composer-footer">
-          <span>Можно ответить коротко или задать свой вопрос</span>
+          <span>Enter — отправить · Shift+Enter — новая строка</span>
           <div className="composer-actions">
             <button className="skip-question" type="button" onClick={() => onSkip(question.id)} disabled={isSaving}>
               Пропустить
@@ -159,7 +160,7 @@ function TaskEditor({ task, isSaving, onConfirm }) {
           </label>
         ))}
         <button className="save-task-card" type="submit" disabled={isSaving || !Object.values(draftFields).some((value) => value.trim())}>
-          {isSaving ? "Сохраняю" : "Сохранить подтверждённые изменения"}
+          {isSaving ? "Сохраняю" : "Сохранить изменения"}
         </button>
       </form>
     </details>
@@ -182,7 +183,6 @@ export default function WorkspaceOverlay({
   const endRef = useRef(null);
   const completedCount = task.questions.filter(({ status }) => status === "answered" || status === "skipped").length;
   const nextQuestionNumber = completedCount + 1;
-  const nextImprovement = task.readiness.missing[0];
   const previousQuestionId = useRef(activeQuestion?.id || null);
   const previousMessageCount = useRef(task.messages.length);
 
@@ -212,7 +212,7 @@ export default function WorkspaceOverlay({
             <HugeiconsIcon icon={ArrowLeft02Icon} size={18} strokeWidth={1.7} />
             Изменить описание
           </button>
-          <span className="conversation-label">РАБОЧАЯ СЕССИЯ · {task.readiness.score} / 100</span>
+          <Link className="conversation-back" to={`/business/tasks/${task.id}/review`}>Карточка задачи ↗</Link>
         </div>
 
         <section className="readiness-hero" aria-label="Текущая полнота задачи">
@@ -242,14 +242,7 @@ export default function WorkspaceOverlay({
             >
               <span aria-hidden="true" />{LEVEL_LABELS[task.readiness.level] || task.readiness.level}
             </motion.span>
-            <h1>{activeQuestion ? "Соберём задачу вместе" : task.readiness.score === 100 ? "Задача готова к работе" : "Черновик уже собран"}</h1>
-            <p>
-              {activeQuestion
-                ? `Каждый конкретный ответ помогает команде лучше понять ваш запрос. Сейчас уточнение ${nextQuestionNumber}.`
-                : task.readiness.score === 100
-                  ? "Все критерии описаны. Можно проверить итоговую карточку ниже."
-                  : "Основное описание готово. Осталось уточнить детали, которые действительно важны."}
-            </p>
+            <h1>{activeQuestion ? `Уточнение ${nextQuestionNumber}` : "Карточка готова к проверке"}</h1>
             <div
               className="readiness-meter"
               role="progressbar"
@@ -265,9 +258,6 @@ export default function WorkspaceOverlay({
                 transition={{ type: "spring", stiffness: 62, damping: 18, mass: 0.8 }}
               />
             </div>
-            {nextImprovement && activeQuestion && (
-              <p className="next-improvement">Сейчас полезнее всего: {nextImprovement.message}</p>
-            )}
             <AnimatePresence>
               {achievement && (
                 <motion.p
@@ -289,6 +279,7 @@ export default function WorkspaceOverlay({
                 <div className="dimension-row" key={dimension.dimension}>
                   <span>{dimension.label}</span>
                   <strong>{dimension.earned} / {dimension.maximum}</strong>
+                  {dimension.status !== "complete" && <small>{task.readiness.missing.find(({ dimension: key }) => key === dimension.dimension)?.message} +{dimension.maximum - dimension.earned}</small>}
                 </div>
               ))}
             </div>
@@ -298,7 +289,6 @@ export default function WorkspaceOverlay({
         <section className="conversation-content" aria-label="Диалог по задаче">
           <header className="conversation-heading">
             <span>ВАША ЗАДАЧА</span>
-            <p>Не нужно знать специальные термины. Расскажите так, как объяснили бы человеку из своей команды.</p>
           </header>
 
           <div className="conversation-events" aria-live="polite">
@@ -343,6 +333,7 @@ export default function WorkspaceOverlay({
         </section>
 
         <TaskEditor task={task} isSaving={isSaving} onConfirm={onConfirm} />
+        <Link className="review-link" to={`/business/tasks/${task.id}/review`}>Проверить карточку и опубликовать <span aria-hidden="true">↗</span></Link>
       </div>
     </motion.section>
   );

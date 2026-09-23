@@ -45,7 +45,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  overflow: hidden;
+  overflow-x: hidden;
   color: var(--paper);
   background: var(--ink);
   font: inherit;
@@ -476,6 +476,33 @@ button:not(:disabled) {
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
 }
+
+.phase-arrived { overflow: visible; }
+.phase-arrived .workspace-overlay {
+  position: relative;
+  min-height: 100vh;
+  overflow: visible;
+  padding-top: 105px;
+  background: rgba(5, 8, 12, 0.7);
+}
+.phase-arrived .space-canvas { pointer-events: none; }
+.phase-arrived .experience::after { pointer-events: none; }
+.review-link {
+  display: flex;
+  width: min(760px, 100%);
+  min-height: 52px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--ink);
+  border-radius: 5px;
+  background: var(--lime);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.load-error { position: relative; z-index: 10; padding: 140px 24px; color: var(--danger); }
 
 .workspace-divider {
   position: absolute;
@@ -965,9 +992,9 @@ button:not(:disabled) {
 
 .readiness-hero {
   display: grid;
-  grid-template-columns: 152px minmax(0, 1fr) 178px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 28px;
+  gap: 13px;
   padding: 24px 0 28px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -988,7 +1015,7 @@ button:not(:disabled) {
 
 .readiness-score-value {
   color: var(--paper);
-  font-size: 76px;
+  font-size: 112px;
   font-weight: 570;
   line-height: 0.9;
   font-variant-numeric: tabular-nums;
@@ -1071,7 +1098,7 @@ button:not(:disabled) {
 }
 
 .dimension-details {
-  align-self: center;
+  align-self: start;
   color: var(--paper-muted);
 }
 
@@ -1091,6 +1118,14 @@ button:not(:disabled) {
 .dimension-details .dimension-row {
   min-height: 28px;
   font-size: 10px;
+}
+
+.dimension-details .dimension-row small {
+  display: block;
+  grid-column: 1 / -1;
+  margin: 2px 0 8px;
+  color: var(--paper-muted);
+  line-height: 1.4;
 }
 
 .dimension-details .dimension-row strong {
@@ -1456,7 +1491,7 @@ button:not(:disabled) {
 
 @media (max-width: 760px) {
   body {
-    overflow: hidden;
+    overflow-x: hidden;
   }
 
   .experience-header {
@@ -1571,7 +1606,7 @@ button:not(:disabled) {
   }
 
   .readiness-hero {
-    grid-template-columns: 94px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     padding: 17px 0 20px;
   }
@@ -1581,7 +1616,7 @@ button:not(:disabled) {
   }
 
   .readiness-score-value {
-    font-size: 51px;
+    font-size: 88px;
   }
 
   .readiness-copy h1 {

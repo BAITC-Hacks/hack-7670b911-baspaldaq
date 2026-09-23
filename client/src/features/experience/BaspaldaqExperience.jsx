@@ -5,6 +5,8 @@ import TaskInput from "./TaskInput.jsx";
 import WorkspaceOverlay from "./WorkspaceOverlay.jsx";
 import { analyzeTask, answerTaskQuestion, confirmTaskFields, skipTaskQuestion } from "../../lib/tasksApi.js";
 import { createExperienceAudio } from "../../lib/experienceAudio.js";
+import { useNavigate, useParams } from "react-router-dom";
+import { getTask } from "../../lib/tasksApi.js";
 
 const SpaceScene = lazy(() => import("./SpaceScene.jsx"));
 
@@ -16,6 +18,8 @@ const LEVEL_TITLES = {
 };
 
 export default function BaspaldaqExperience() {
+  const navigate = useNavigate();
+  const { taskId } = useParams();
   const [phase, setPhase] = useState("entry");
   const [milestone, setMilestone] = useState("ready");
   const [taskIdea, setTaskIdea] = useState("");
@@ -44,6 +48,20 @@ export default function BaspaldaqExperience() {
   useEffect(() => {
     audioRef.current?.setMuted(!soundEnabled);
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!taskId) return undefined;
+    let active = true;
+    getTask(taskId).then((loaded) => {
+      if (!active) return;
+      setTask(loaded);
+      setPhase("arrived");
+      setIsAnalyzing(false);
+    }).catch((error) => {
+      if (active) setTaskError(error.message);
+    });
+    return () => { active = false; };
+  }, [taskId]);
 
   const finishFlight = useCallback(() => {
     setFlightArrived(true);
@@ -78,6 +96,7 @@ export default function BaspaldaqExperience() {
     try {
       const analyzedTask = await analyzeTask(normalizedIdea);
       setTask(analyzedTask);
+      window.localStorage.setItem("baspaldaq:last-task", analyzedTask.id);
     } catch (error) {
       audioRef.current?.stop();
       setRequestError(error.message);
@@ -89,6 +108,7 @@ export default function BaspaldaqExperience() {
   }
 
   function handleReset() {
+    navigate("/business/new");
     audioRef.current?.stop();
     setPhase("entry");
     setMilestone("ready");
@@ -242,7 +262,7 @@ export default function BaspaldaqExperience() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {phase === "arrived" && (
+          {phase === "arrived" && task && (
               <WorkspaceOverlay
                 task={task}
                 isSaving={isSaving}
@@ -255,6 +275,7 @@ export default function BaspaldaqExperience() {
               />
           )}
         </AnimatePresence>
+        {taskError && !task && <div className="load-error" role="alert">{taskError}</div>}
       </main>
     </div>
   );

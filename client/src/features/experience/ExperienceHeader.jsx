@@ -1,17 +1,9 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { VolumeHighIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
 import { motion } from "motion/react";
-
-const MILESTONE_LABELS = {
-  ready: "Ввод",
-  descent: "Спуск",
-  turn: "Поворот",
-  system: "Система задачи",
-};
+import { Link } from "react-router-dom";
 
 export default function ExperienceHeader({
-  phase,
-  milestone,
   soundEnabled,
   onSoundToggle,
   onReset,
@@ -37,12 +29,7 @@ export default function ExperienceHeader({
         />
       </button>
 
-      <div className="journey-status" aria-live="polite">
-        <span className="journey-number">
-          {phase === "entry" ? "01" : phase === "flight" ? "02" : "03"}
-        </span>
-        <span>{MILESTONE_LABELS[milestone]}</span>
-      </div>
+      <nav className="experience-nav" aria-label="Разделы"><Link to="/business">Мои задачи</Link><Link to="/catalog">Каталог</Link><Link to="/team">Команда</Link></nav>
 
       <button
         className="sound-toggle"
