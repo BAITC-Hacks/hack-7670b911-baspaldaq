@@ -5,6 +5,16 @@ import * as THREE from "three";
 
 const START_POINT = new THREE.Vector3(3.2, -1.15, 0);
 const SYSTEM_CENTER = new THREE.Vector3(23, -10, 0);
+const ROCKET_PROFILE = [
+  [0, 2.28],
+  [0.12, 2.12],
+  [0.34, 1.7],
+  [0.5, 1.18],
+  [0.56, 0.7],
+  [0.58, -0.88],
+  [0.5, -1.18],
+  [0.39, -1.34],
+].map(([radius, height]) => new THREE.Vector2(radius, height));
 
 const FLIGHT_PATH = new THREE.CatmullRomCurve3(
   [
@@ -118,53 +128,94 @@ class SceneBoundary extends Component {
   }
 }
 
-function RocketModel({ rocketRef, reducedMotion }) {
+function RocketModel({ rocketRef, reducedMotion, visible, ignited }) {
   const flameRef = useRef(null);
+  const innerFlameRef = useRef(null);
+  const visualRef = useRef(null);
+  const { size } = useThree();
+  const finShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(0.34, -0.52);
+    shape.bezierCurveTo(0.72, -0.82, 0.94, -1.28, 1.02, -1.76);
+    shape.lineTo(0.48, -1.52);
+    shape.lineTo(0.18, -0.82);
+    shape.closePath();
+    return shape;
+  }, []);
 
-  useFrame(({ clock }) => {
-    if (!flameRef.current || reducedMotion) {
+  useFrame(({ clock }, delta) => {
+    if (visualRef.current) {
+      visualRef.current.visible = visible;
+      const targetScale = visible ? (size.width < 700 ? 0.38 : 0.48) : 0.001;
+      const nextScale = THREE.MathUtils.damp(
+        visualRef.current.scale.x,
+        targetScale,
+        10,
+        delta,
+      );
+      visualRef.current.scale.setScalar(nextScale);
+    }
+
+    if (!flameRef.current || !innerFlameRef.current || reducedMotion || !ignited) {
       return;
     }
 
     const pulse = 1 + Math.sin(clock.elapsedTime * 18) * 0.16;
     flameRef.current.scale.y = pulse;
+    innerFlameRef.current.scale.y = 1 + Math.cos(clock.elapsedTime * 23) * 0.12;
   });
 
   return (
-    <group ref={rocketRef} scale={0.42}>
-      <mesh position={[0, 0.15, 0]}>
-        <cylinderGeometry args={[0.48, 0.68, 2.35, 18]} />
+    <group ref={rocketRef}>
+      <group ref={visualRef} visible={visible} scale={0.001}>
+      <mesh castShadow receiveShadow>
+        <latheGeometry args={[ROCKET_PROFILE, 64]} />
         <meshStandardMaterial
-          color="#dce5e7"
-          metalness={0.72}
-          roughness={0.24}
+          color="#e9edf2"
+          metalness={0.64}
+          roughness={0.2}
         />
       </mesh>
-      <mesh position={[0, 1.63, 0]}>
-        <coneGeometry args={[0.49, 1.25, 18]} />
-        <meshStandardMaterial color="#d9ff42" metalness={0.32} roughness={0.28} />
+      <mesh position={[0, 0.16, 0]}>
+        <cylinderGeometry args={[0.585, 0.585, 0.18, 48]} />
+        <meshStandardMaterial color="#246bfd" metalness={0.42} roughness={0.24} />
       </mesh>
-      <mesh position={[0, 0.52, 0.55]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.16, 24]} />
+      <mesh position={[0, 0.92, 0.49]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.28, 0.28, 0.1, 32]} />
         <meshStandardMaterial
-          color="#10141a"
-          emissive="#7cd9e8"
-          emissiveIntensity={0.7}
+          color="#07131f"
+          emissive="#3a91ff"
+          emissiveIntensity={0.38}
+          metalness={0.6}
+          roughness={0.16}
         />
       </mesh>
-      <mesh position={[-0.72, -0.75, 0]} rotation={[0, 0, -0.36]}>
-        <boxGeometry args={[0.18, 1.15, 0.72]} />
-        <meshStandardMaterial color="#87939b" metalness={0.6} roughness={0.3} />
+      {[0, (Math.PI * 2) / 3, (Math.PI * 4) / 3].map((rotation) => (
+        <group key={rotation} rotation={[0, rotation, 0]}>
+          <mesh position={[0, 0, 0.43]}>
+            <extrudeGeometry
+              args={[finShape, { depth: 0.12, bevelEnabled: true, bevelSize: 0.035, bevelThickness: 0.035 }]}
+            />
+            <meshStandardMaterial color="#246bfd" metalness={0.48} roughness={0.22} />
+          </mesh>
+        </group>
+      ))}
+      <mesh position={[0, -1.42, 0]}>
+        <cylinderGeometry args={[0.34, 0.43, 0.26, 32]} />
+        <meshStandardMaterial color="#252d39" metalness={0.84} roughness={0.18} />
       </mesh>
-      <mesh position={[0.72, -0.75, 0]} rotation={[0, 0, 0.36]}>
-        <boxGeometry args={[0.18, 1.15, 0.72]} />
-        <meshStandardMaterial color="#87939b" metalness={0.6} roughness={0.3} />
-      </mesh>
-      <mesh ref={flameRef} position={[0, -1.58, 0]}>
-        <coneGeometry args={[0.38, 1.8, 18]} />
-        <meshBasicMaterial color="#8eeaf2" transparent opacity={0.86} />
-      </mesh>
-      <pointLight position={[0, -2.2, 0]} color="#7de1ed" intensity={3.2} distance={7} />
+      <group visible={ignited}>
+        <mesh ref={flameRef} position={[0, -2.18, 0]} rotation={[0, 0, Math.PI]}>
+          <coneGeometry args={[0.32, 1.55, 24]} />
+          <meshBasicMaterial color="#369cff" transparent opacity={0.72} />
+        </mesh>
+        <mesh ref={innerFlameRef} position={[0, -1.98, 0]} rotation={[0, 0, Math.PI]}>
+          <coneGeometry args={[0.17, 1.06, 20]} />
+          <meshBasicMaterial color="#f3fbff" transparent opacity={0.94} />
+        </mesh>
+        <pointLight position={[0, -2.25, 0]} color="#369cff" intensity={4.2} distance={8} />
+      </group>
+      </group>
     </group>
   );
 }
@@ -263,7 +314,7 @@ function PlanetSystem({ visible, reducedMotion }) {
   );
 }
 
-function FlightDirector({ phase, reducedMotion, onArrive, onMilestone }) {
+function FlightDirector({ phase, reducedMotion, rocketVisible, onArrive, onMilestone }) {
   const rocketRef = useRef(null);
   const progressRef = useRef(0);
   const lookAtRef = useRef(new THREE.Vector3(0, 0, 0));
@@ -281,12 +332,18 @@ function FlightDirector({ phase, reducedMotion, onArrive, onMilestone }) {
       rocketRef.current.position.copy(START_POINT);
       rocketRef.current.position.y += floatOffset;
       rocketRef.current.rotation.set(0, 0, 0.08);
-      const entryDistance = size.width < 700 ? 15 : 10;
+      const compact = size.width < 700;
+      const entryCamera = compact
+        ? new THREE.Vector3(1.4, 0.7, 15)
+        : new THREE.Vector3(0, 0, 10);
+      const entryLookAt = compact
+        ? new THREE.Vector3(1.4, 0.7, 0)
+        : new THREE.Vector3(0, 0, 0);
       camera.position.lerp(
-        new THREE.Vector3(0, 0, entryDistance),
+        entryCamera,
         1 - Math.exp(-delta * 3),
       );
-      lookAtRef.current.lerp(new THREE.Vector3(0, 0, 0), 1 - Math.exp(-delta * 3));
+      lookAtRef.current.lerp(entryLookAt, 1 - Math.exp(-delta * 3));
       camera.lookAt(lookAtRef.current);
       return;
     }
@@ -339,10 +396,17 @@ function FlightDirector({ phase, reducedMotion, onArrive, onMilestone }) {
     camera.lookAt(lookAtRef.current);
   });
 
-  return <RocketModel rocketRef={rocketRef} reducedMotion={reducedMotion} />;
+  return (
+    <RocketModel
+      rocketRef={rocketRef}
+      reducedMotion={reducedMotion}
+      visible={rocketVisible}
+      ignited={phase === "flight"}
+    />
+  );
 }
 
-function Scene({ phase, reducedMotion, onArrive, onMilestone }) {
+function Scene({ phase, reducedMotion, rocketVisible, onArrive, onMilestone }) {
   return (
     <>
       <color attach="background" args={["#07090d"]} />
@@ -363,6 +427,7 @@ function Scene({ phase, reducedMotion, onArrive, onMilestone }) {
       <FlightDirector
         phase={phase}
         reducedMotion={reducedMotion}
+        rocketVisible={rocketVisible}
         onArrive={onArrive}
         onMilestone={onMilestone}
       />
@@ -370,7 +435,13 @@ function Scene({ phase, reducedMotion, onArrive, onMilestone }) {
   );
 }
 
-export default function SpaceScene({ phase, reducedMotion, onArrive, onMilestone }) {
+export default function SpaceScene({
+  phase,
+  reducedMotion,
+  rocketVisible,
+  onArrive,
+  onMilestone,
+}) {
   return (
     <SceneBoundary>
       <div className="space-canvas" aria-hidden="true">
@@ -382,6 +453,7 @@ export default function SpaceScene({ phase, reducedMotion, onArrive, onMilestone
           <Scene
             phase={phase}
             reducedMotion={reducedMotion}
+            rocketVisible={rocketVisible}
             onArrive={onArrive}
             onMilestone={onMilestone}
           />

@@ -1,12 +1,12 @@
 import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRight02Icon } from "@hugeicons/core-free-icons";
+import { ArrowUp02Icon } from "@hugeicons/core-free-icons";
 import { motion } from "motion/react";
 
 const MIN_LENGTH = 12;
 
-export default function TaskInput({ onSubmit }) {
+export default function TaskInput({ onSubmit, onValueChange }) {
   const textareaRef = useRef(null);
   const {
     register,
@@ -21,7 +21,10 @@ export default function TaskInput({ onSubmit }) {
       value: MIN_LENGTH,
       message: "Добавьте немного контекста — минимум 12 символов",
     },
-    onChange: (event) => resizeTextarea(event.currentTarget),
+    onChange: (event) => {
+      resizeTextarea(event.currentTarget);
+      onValueChange(event.currentTarget.value);
+    },
   });
 
   function resizeTextarea(element) {
@@ -30,7 +33,7 @@ export default function TaskInput({ onSubmit }) {
   }
 
   function handleKeyDown(event) {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
@@ -45,9 +48,6 @@ export default function TaskInput({ onSubmit }) {
       transition={{ delay: 0.18, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       noValidate
     >
-      <span className="composer-index" aria-hidden="true">
-        Ввод
-      </span>
       <label className="sr-only" htmlFor="task-idea">
         Опишите задачу или проблему бизнеса
       </label>
@@ -67,13 +67,13 @@ export default function TaskInput({ onSubmit }) {
       <motion.button
         type="submit"
         className="composer-launch"
-        disabled={!idea.trim()}
-        whileHover={idea.trim() ? { scale: 1.06, rotate: 4 } : undefined}
+        disabled={idea.trim().length < MIN_LENGTH}
+        whileHover={idea.trim().length >= MIN_LENGTH ? { scale: 1.06, y: -1 } : undefined}
         whileTap={idea.trim() ? { scale: 0.94 } : undefined}
         aria-label="Запустить формирование задачи"
         title="Запустить"
       >
-        <HugeiconsIcon icon={ArrowUpRight02Icon} size={21} strokeWidth={1.8} />
+        <HugeiconsIcon icon={ArrowUp02Icon} size={22} strokeWidth={2} />
       </motion.button>
       {errors.idea && (
         <span className="composer-error" id="task-error" role="alert">

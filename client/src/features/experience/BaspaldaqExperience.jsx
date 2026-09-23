@@ -11,6 +11,7 @@ export default function BaspaldaqExperience() {
   const [phase, setPhase] = useState("entry");
   const [milestone, setMilestone] = useState("ready");
   const [taskIdea, setTaskIdea] = useState("");
+  const [draftIdea, setDraftIdea] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [sceneKey, setSceneKey] = useState(0);
   const soundRef = useRef(null);
@@ -57,6 +58,7 @@ export default function BaspaldaqExperience() {
     setPhase("entry");
     setMilestone("ready");
     setTaskIdea("");
+    setDraftIdea("");
     setSceneKey((value) => value + 1);
     window.requestAnimationFrame(() => document.getElementById("task-idea")?.focus());
   }
@@ -73,6 +75,7 @@ export default function BaspaldaqExperience() {
           key={sceneKey}
           phase={phase}
           reducedMotion={Boolean(shouldReduceMotion)}
+          rocketVisible={phase !== "entry" || draftIdea.trim().length > 0}
           onArrive={finishFlight}
           onMilestone={setMilestone}
         />
@@ -112,11 +115,10 @@ export default function BaspaldaqExperience() {
                 </p>
               </div>
 
-              <TaskInput onSubmit={handleSubmit} />
+              <TaskInput onSubmit={handleSubmit} onValueChange={setDraftIdea} />
 
               <div className="entry-caption">
                 <span>AI не добавляет факты за вас</span>
-                <span>Ctrl + Enter</span>
               </div>
             </motion.section>
           )}
