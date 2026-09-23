@@ -192,15 +192,11 @@ button:not(:disabled) {
   font-weight: 680;
 }
 
-.brand-glyph {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  color: var(--ink);
-  background: var(--lime);
-  border-radius: 50%;
-  place-items: center;
-  box-shadow: 0 0 32px rgba(217, 255, 66, 0.2);
+.brand-wordmark {
+  display: block;
+  width: 126px;
+  height: 42px;
+  object-fit: contain;
 }
 
 .journey-status {

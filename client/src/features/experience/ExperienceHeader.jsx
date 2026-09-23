@@ -23,11 +23,18 @@ export default function ExperienceHeader({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
-      <button className="experience-brand" type="button" onClick={onReset}>
-        <span className="brand-glyph" aria-hidden="true">
-          Б
-        </span>
-        <span>Baspaldaq</span>
+      <button
+        className="experience-brand"
+        type="button"
+        onClick={onReset}
+        aria-label="Baspaldaq, начать новую задачу"
+      >
+        <img
+          className="brand-wordmark"
+          src="/brand/baspladaq-wordmark.png"
+          alt=""
+          draggable="false"
+        />
       </button>
 
       <div className="journey-status" aria-live="polite">
