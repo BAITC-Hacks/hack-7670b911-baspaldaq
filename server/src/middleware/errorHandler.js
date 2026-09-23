@@ -11,7 +11,9 @@ export function errorHandler(error, _request, response, next) {
   }
 
   response.status(status).json({
-    error: error.message && status < 500 ? error.message : "Не удалось обработать запрос. Попробуйте ещё раз.",
-    code: error.code || "INTERNAL_ERROR",
+    error: {
+      code: error.code || "INTERNAL_ERROR",
+      message: error.message && status < 500 ? error.message : "Не удалось обработать запрос. Попробуйте ещё раз.",
+    },
   });
 }

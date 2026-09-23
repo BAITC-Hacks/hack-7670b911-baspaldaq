@@ -34,7 +34,7 @@ export function createApp() {
   const app = express();
 
   app.disable("x-powered-by");
-  app.use(cors({ origin: allowClientOrigin }));
+  app.use(cors({ origin: allowClientOrigin, methods: ["GET", "POST", "PATCH", "OPTIONS"], allowedHeaders: ["Content-Type"], credentials: false }));
   app.use(express.json({ limit: "1mb" }));
   app.use("/api", apiRouter);
   app.use(notFoundHandler);

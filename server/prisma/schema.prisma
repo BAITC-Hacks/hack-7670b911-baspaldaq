@@ -12,13 +12,65 @@ model Task {
   description String
   score       Int                      @default(0)
   level       String                   @default("draft")
+  status      String                   @default("CLARIFYING")
+  topic       String?
+  confirmedAt DateTime?
+  publishedAt DateTime?
   fields      TaskField[]
   dimensions  TaskDimension[]
   questions   ClarificationQuestion[]
   answers     ClarificationAnswer[]
   messages    TaskMessage[]
+  proposals   Proposal[]
+  milestones  Milestone[]
   createdAt   DateTime                 @default(now())
   updatedAt   DateTime                 @updatedAt
+}
+
+model Team {
+  id           String      @id @default(cuid())
+  name         String
+  interests    String      @default("")
+  skills       String      @default("")
+  technologies String      @default("")
+  points       Int         @default(0)
+  proposals    Proposal[]
+  milestones   Milestone[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model Proposal {
+  id           String   @id @default(cuid())
+  taskId       String
+  teamId       String
+  solutionIdea String
+  plan         String
+  timeline     String
+  prototypeUrl String
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@index([teamId])
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  taskId      String
+  teamId      String
+  title       String
+  confirmedAt DateTime?
+  points      Int       @default(0)
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([taskId])
+  @@index([teamId])
 }
 
 model TaskField {

@@ -6,7 +6,7 @@ import { calculateReadiness, DIMENSIONS } from "../domain/readiness.js";
 import { assessConversationReply, conversationInputSchema } from "../domain/conversation.js";
 import {
   analysisInputSchema,
-  confirmationInputSchema,
+  DIMENSION_FIELDS,
   FIELD_KEYS,
   FIELD_LABELS,
   analyzeBusinessSources,
@@ -15,6 +15,19 @@ import {
 export const tasksRouter = Router();
 
 const taskIdSchema = z.string().min(1).max(120);
+const cardInputSchema = z.object({
+  fields: z.array(z.object({
+    key: z.enum(FIELD_KEYS),
+    value: z.string().trim().max(1000),
+  }).strict()).max(FIELD_KEYS.length),
+  topic: z.string().trim().max(80).nullable().optional(),
+}).strict();
+const catalogQuerySchema = z.object({
+  published: z.enum(["true", "false"]).default("true"),
+  readiness: z.enum(["draft", "workable", "ready", "priority"]).optional(),
+  topic: z.string().trim().min(1).max(80).optional(),
+  sort: z.enum(["score_desc", "score_asc", "newest"]).default("score_desc"),
+}).strict();
 const taskInclude = {
   fields: { orderBy: { createdAt: "asc" } },
   dimensions: true,
@@ -72,7 +85,7 @@ function getEffectiveDimensions(task) {
   });
 }
 
-async function getTaskView(database, taskId, { persistReadiness = true } = {}) {
+export async function getTaskView(database, taskId, { persistReadiness = true } = {}) {
   const task = await database.task.findUnique({ where: { id: taskId }, include: taskInclude });
   if (!task) return null;
 
@@ -95,6 +108,10 @@ async function getTaskView(database, taskId, { persistReadiness = true } = {}) {
     description: persisted.description,
     score: readiness.score,
     level: readiness.level,
+    status: persisted.status,
+    topic: persisted.topic,
+    confirmedAt: persisted.confirmedAt,
+    publishedAt: persisted.publishedAt,
     createdAt: persisted.createdAt,
     updatedAt: persisted.updatedAt,
     fields: task.fields.map((field) => ({
@@ -203,6 +220,59 @@ tasksRouter.post("/analyze", async (request, response) => {
   response.status(201).json({ task });
 });
 
+tasksRouter.post("/", async (request, response) => {
+  const { description } = parseBody(analysisInputSchema, request.body);
+  const created = await prisma.task.create({ data: { description, status: "DRAFT" } });
+  response.status(201).json({ task: await getTaskView(prisma, created.id) });
+});
+
+tasksRouter.get("/", async (request, response) => {
+  const filters = parseBody(catalogQuerySchema, request.query);
+  const tasks = await prisma.task.findMany({
+    where: {
+      status: filters.published === "true" ? "PUBLISHED" : { not: "PUBLISHED" },
+      ...(filters.readiness ? { level: filters.readiness } : {}),
+      ...(filters.topic ? { topic: { contains: filters.topic } } : {}),
+    },
+    include: { fields: { where: { key: { in: ["title", "need", "expectedResult"] } } }, _count: { select: { proposals: true } } },
+    orderBy: filters.sort === "newest" ? [{ publishedAt: "desc" }, { createdAt: "desc" }]
+      : [{ score: filters.sort === "score_asc" ? "asc" : "desc" }, { publishedAt: "desc" }],
+  });
+  response.json({ tasks: tasks.map((task) => ({
+    id: task.id,
+    title: task.fields.find(({ key }) => key === "title")?.value || task.description.slice(0, 80),
+    need: task.fields.find(({ key }) => key === "need")?.value || task.description,
+    expectedResult: task.fields.find(({ key }) => key === "expectedResult")?.value || null,
+    topic: task.topic,
+    score: task.score,
+    level: task.level,
+    status: task.status,
+    publishedAt: task.publishedAt,
+    proposalCount: task._count.proposals,
+  })) });
+});
+
+tasksRouter.post("/:taskId/analyze", async (request, response) => {
+  const taskId = parseBody(taskIdSchema, request.params.taskId);
+  const record = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!record) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
+  if (record.status === "PUBLISHED") throw new AppError(409, "TASK_PUBLISHED", "Опубликованную задачу нельзя переанализировать.");
+  const analysis = await analyzeBusinessSources([{ id: "description", text: record.description }]);
+  const task = await prisma.$transaction(async (transaction) => {
+    await applyAnalysis(transaction, taskId, analysis);
+    await transaction.task.update({ where: { id: taskId }, data: { status: "CLARIFYING", confirmedAt: null } });
+    return recalculate(transaction, taskId);
+  });
+  response.json({ task });
+});
+
+tasksRouter.get("/:taskId/questions", async (request, response) => {
+  const taskId = parseBody(taskIdSchema, request.params.taskId);
+  const task = await getTaskView(prisma, taskId, { persistReadiness: false });
+  if (!task) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
+  response.json({ questions: task.questions });
+});
+
 tasksRouter.get("/:taskId", async (request, response) => {
   const taskId = parseBody(taskIdSchema, request.params.taskId);
   const task = await getTaskView(prisma, taskId, { persistReadiness: false });
@@ -224,6 +294,7 @@ tasksRouter.post("/:taskId/answers", async (request, response) => {
     include: { answers: { orderBy: { createdAt: "asc" } }, questions: true },
   });
   if (!taskRecord) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
+  if (taskRecord.status === "PUBLISHED") throw new AppError(409, "TASK_PUBLISHED", "Задача уже опубликована.");
 
   if (skip) {
     await prisma.$transaction(async (transaction) => {
@@ -331,33 +402,42 @@ tasksRouter.post("/:taskId/answers", async (request, response) => {
   });
 });
 
-tasksRouter.post("/:taskId/confirm", async (request, response) => {
+tasksRouter.patch("/:taskId", async (request, response) => {
   const taskId = parseBody(taskIdSchema, request.params.taskId);
-  const { fields } = parseBody(confirmationInputSchema, request.body);
+  const { fields, topic } = parseBody(cardInputSchema, request.body);
   if (new Set(fields.map(({ key }) => key)).size !== fields.length) {
     throw new AppError(422, "DUPLICATE_FIELDS", "Каждое поле можно передать только один раз.");
   }
 
   const task = await prisma.task.findUnique({ where: { id: taskId }, include: { fields: true } });
   if (!task) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
+  if (task.status === "PUBLISHED") throw new AppError(409, "TASK_PUBLISHED", "Опубликованную задачу нельзя изменить.");
 
   const updatedTask = await prisma.$transaction(async (transaction) => {
+    const touched = new Set(fields.map(({ key }) => key));
     for (const { key, value } of fields) {
       const previous = task.fields.find((field) => field.key === key);
       const isManualEdit = value !== previous?.value;
-      await transaction.taskField.update({
+      await transaction.taskField.upsert({
         where: { taskId_key: { taskId, key } },
-        data: {
-          value,
-          status: "confirmed",
-          ...(isManualEdit ? {
-            provenance: "manual_edit",
-            sourceId: `manual_edit:${key}`,
-            evidence: JSON.stringify([{ sourceId: `manual_edit:${key}`, quote: value }]),
-          } : {}),
-        },
+        create: { taskId, key, value: value || null, status: value ? "confirmed" : "pending", provenance: "manual_edit", sourceId: value ? `manual_edit:${key}` : null, evidence: value ? JSON.stringify([{ sourceId: `manual_edit:${key}`, quote: value }]) : null },
+        update: { value: value || null, status: value ? "confirmed" : "pending", ...(isManualEdit ? { provenance: "manual_edit", sourceId: value ? `manual_edit:${key}` : null, evidence: value ? JSON.stringify([{ sourceId: `manual_edit:${key}`, quote: value }]) : null } : {}) },
       });
     }
+
+    const currentFields = await transaction.taskField.findMany({ where: { taskId } });
+    for (const [dimensionKey, keys] of Object.entries(DIMENSION_FIELDS)) {
+      if (!keys.some((key) => touched.has(key))) continue;
+      const values = keys.map((key) => currentFields.find((field) => field.key === key)).filter((field) => field?.value);
+      const evidence = values.map((field) => ({ sourceId: field.sourceId || `manual_edit:${field.key}`, quote: field.value }));
+      const aiStatus = values.length === 0 ? "missing" : values.length === keys.length ? "complete" : "partial";
+      await transaction.taskDimension.upsert({
+        where: { taskId_key: { taskId, key: dimensionKey } },
+        create: { taskId, key: dimensionKey, aiStatus, evidence: JSON.stringify(evidence) },
+        update: { aiStatus, evidence: JSON.stringify(evidence) },
+      });
+    }
+    await transaction.task.update({ where: { id: taskId }, data: { ...(topic !== undefined ? { topic } : {}), status: "CLARIFYING", confirmedAt: null } });
 
     return recalculate(transaction, taskId);
   });
@@ -367,4 +447,27 @@ tasksRouter.post("/:taskId/confirm", async (request, response) => {
   }
 
   response.json({ task: updatedTask });
+});
+
+tasksRouter.post("/:taskId/confirm", async (request, response) => {
+  const taskId = parseBody(taskIdSchema, request.params.taskId);
+  const record = await prisma.task.findUnique({ where: { id: taskId }, include: { fields: true } });
+  if (!record) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
+  if (record.status === "PUBLISHED") throw new AppError(409, "TASK_PUBLISHED", "Задача уже опубликована.");
+  const required = ["title", "need"];
+  if (required.some((key) => !record.fields.find((field) => field.key === key)?.value?.trim())) {
+    throw new AppError(422, "CARD_INCOMPLETE", "Для подтверждения заполните название и потребность в карточке.");
+  }
+  await prisma.task.update({ where: { id: taskId }, data: { status: "CONFIRMED", confirmedAt: new Date() } });
+  response.json({ task: await getTaskView(prisma, taskId, { persistReadiness: false }) });
+});
+
+tasksRouter.post("/:taskId/publish", async (request, response) => {
+  const taskId = parseBody(taskIdSchema, request.params.taskId);
+  const record = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!record) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
+  if (record.status !== "CONFIRMED") throw new AppError(409, "TASK_NOT_CONFIRMED", "Сначала подтвердите карточку задачи.");
+  await getTaskView(prisma, taskId);
+  await prisma.task.update({ where: { id: taskId }, data: { status: "PUBLISHED", publishedAt: new Date() } });
+  response.json({ task: await getTaskView(prisma, taskId, { persistReadiness: false }) });
 });
