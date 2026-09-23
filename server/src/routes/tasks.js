@@ -6,11 +6,9 @@ import { calculateReadiness, DIMENSIONS } from "../domain/readiness.js";
 import { assessConversationReply, conversationInputSchema } from "../domain/conversation.js";
 import {
   analysisInputSchema,
-  DIMENSION_FIELDS,
   FIELD_KEYS,
   FIELD_LABELS,
   analyzeBusinessSources,
-  mergeConfirmedManualEvidence,
 } from "../domain/taskAnalysis.js";
 
 export const tasksRouter = Router();
@@ -129,6 +127,7 @@ export async function getTaskView(database, taskId, { persistReadiness = true } 
     questions: task.questions.map((question) => ({
       id: question.id,
       question: question.question,
+      reason: question.reason,
       targetDimensions: readJson(question.targetDimensions, []),
       status: question.status,
       retryCount: question.retryCount,
@@ -173,9 +172,8 @@ async function applyAnalysis(transaction, taskId, analysis) {
     });
   }
 
-  const confirmedFields = await transaction.taskField.findMany({ where: { taskId, status: "confirmed", provenance: "manual_edit" } });
   for (const { key } of DIMENSIONS) {
-    const dimension = mergeConfirmedManualEvidence(analysis.dimensions[key], key, confirmedFields);
+    const dimension = analysis.dimensions[key];
     await transaction.taskDimension.upsert({
       where: { taskId_key: { taskId, key } },
       create: { taskId, key, aiStatus: dimension.status, evidence: JSON.stringify(dimension.evidence) },
@@ -393,6 +391,7 @@ tasksRouter.post("/:taskId/answers", async (request, response) => {
       data: { status: "answered", answeredAt: new Date() },
     });
     await applyAnalysis(transaction, taskId, analysis);
+    await transaction.task.update({ where: { id: taskId }, data: { status: "CLARIFYING", confirmedAt: null } });
     return recalculate(transaction, taskId);
   });
 
@@ -421,8 +420,14 @@ tasksRouter.patch("/:taskId", async (request, response) => {
   if (!task) throw new AppError(404, "TASK_NOT_FOUND", "Задача не найдена.");
   if (task.status === "PUBLISHED") throw new AppError(409, "TASK_PUBLISHED", "Опубликованную задачу нельзя изменить.");
 
+  const nextValues = new Map(task.fields.map((field) => [field.key, field.value || ""]));
+  for (const field of fields) nextValues.set(field.key, field.value);
+  const sources = [...nextValues].filter(([, value]) => value.trim()).map(([key, value]) => ({
+    id: `manual_edit:${key}`, text: `${FIELD_LABELS[key]}: ${value}`,
+  }));
+  const assessment = sources.length ? await analyzeBusinessSources(sources) : null;
+
   const updatedTask = await prisma.$transaction(async (transaction) => {
-    const touched = new Set(fields.map(({ key }) => key));
     for (const { key, value } of fields) {
       const previous = task.fields.find((field) => field.key === key);
       const isManualEdit = value !== previous?.value;
@@ -433,12 +438,8 @@ tasksRouter.patch("/:taskId", async (request, response) => {
       });
     }
 
-    const currentFields = await transaction.taskField.findMany({ where: { taskId } });
-    for (const [dimensionKey, keys] of Object.entries(DIMENSION_FIELDS)) {
-      if (!keys.some((key) => touched.has(key))) continue;
-      const values = keys.map((key) => currentFields.find((field) => field.key === key)).filter((field) => field?.value);
-      const evidence = values.map((field) => ({ sourceId: field.sourceId || `manual_edit:${field.key}`, quote: field.value }));
-      const aiStatus = values.length === 0 ? "missing" : values.length === keys.length ? "complete" : "partial";
+    for (const { key: dimensionKey } of DIMENSIONS) {
+      const { status: aiStatus, evidence } = assessment?.dimensions[dimensionKey] || { status: "missing", evidence: [] };
       await transaction.taskDimension.upsert({
         where: { taskId_key: { taskId, key: dimensionKey } },
         create: { taskId, key: dimensionKey, aiStatus, evidence: JSON.stringify(evidence) },

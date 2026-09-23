@@ -76,6 +76,20 @@ This idempotent command adds five synthetic drafts, five published task cards, f
 
 Readiness is `draft` (0-39), `workable` (40-69), `ready` (70-89), or `priority` (90-100). Every published task remains in the catalog, including low-scoring ones. Proposals have `PENDING`, `ACCEPTED`, or `REJECTED` status. The business can accept several teams or none. Confirming a milestone for an accepted team awards 10 points exactly once.
 
+## Rating Formula
+
+Readiness is the rounded sum of seven weighted criteria: context and need (20), data and materials (20), expected result (15), success criteria (15), constraints (10), users (10), and business contact plus interaction format (10). A missing criterion earns zero, partial completeness earns half its weight, and complete earns its full weight. Evidence must reference the user's actual input. Manual edits are semantically assessed by AI as well: nonempty text such as "I do not know" does not earn completeness points.
+
+The immediate conversational score reflects grounded user input before final card approval. Publication requires explicit human confirmation. Editing the card or accepting another clarification answer invalidates that confirmation and requires approval again.
+
+## Five-Minute Demo
+
+1. Minute 0-1: open `/business/new`, describe lost orders in a shop's spreadsheets, and submit. Show the initial score and the AI's clarification questions.
+2. Minute 1-2: answer with concrete users (12 shop managers and 3 delivery staff), available data (an anonymized CSV of orders), and an expected result (a web order tracker). Show the score changing and the explanation of missing information.
+3. Minute 2-3: review the editable card, add measurable acceptance criteria (every order has a responsible manager and delivery status), confirm, and publish. The catalog also contains lower-readiness tasks; they remain open for proposals.
+4. Minute 3-4: switch to the team role, open a seeded task, and submit an idea, plan, timeline, and prototype link from a team profile.
+5. Minute 4-5: switch back to business, manually accept a proposal, create and confirm a milestone, and show the team's points. Use seeded proposals if time is short. Refresh the page to demonstrate database persistence.
+
 ## Validation
 
 ```powershell

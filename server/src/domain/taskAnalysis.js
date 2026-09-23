@@ -41,19 +41,6 @@ export const DIMENSION_FIELDS = Object.freeze({
   BUSINESS_CONNECTION: ["contact", "interactionFormat"],
 });
 
-export function mergeConfirmedManualEvidence(dimension, dimensionKey, fields) {
-  const keys = DIMENSION_FIELDS[dimensionKey];
-  const manual = keys.map((key) => fields.find((field) => field.key === key && field.status === "confirmed" && field.provenance === "manual_edit" && field.value)).filter(Boolean);
-  if (manual.length === 0) return dimension;
-  return {
-    status: manual.length === keys.length ? "complete" : dimension.status === "missing" ? "partial" : dimension.status,
-    evidence: [
-      ...dimension.evidence,
-      ...manual.map((field) => ({ sourceId: `manual_edit:${field.key}`, quote: field.value })),
-    ],
-  };
-}
-
 const dimensionKeys = DIMENSIONS.map(({ key }) => key);
 const evidenceSchema = z.object({
   sourceId: z.string().min(1).max(120),
@@ -117,6 +104,7 @@ const SYSTEM_PROMPT = `Ты анализируешь описание реаль
 Если поле неизвестно, верни null и пустой список evidence.
 Каждая цитата evidence должна дословно совпадать с непрерывным фрагментом текста пользовательского источника, а sourceId должен совпадать с ID этого источника.
 Статус dimension может быть только missing, partial или complete. Для missing evidence пустой; для partial/complete приведи точную подтверждающую цитату.
+Наличие текста само по себе не означает полноту. Ответы «не знаю», «потом», «не указано», бессмысленный или не относящийся к полю текст не раскрывают критерий: верни missing. Для complete нужны конкретные полезные сведения; для successCriteria нужны проверяемые признаки приёмки. Явно указанное отсутствие ограничений может быть содержательным ответом.
 Не вычисляй числовой readiness score и не присваивай баллы.
 Сформулируй от 3 до 7 коротких уточняющих вопросов по missing и partial dimensions. Не спрашивай о данных, которые уже прямо указаны в источниках, и избегай ранее заданных вопросов.
 Не выдумывай ответы, дедлайны, бюджеты, пользователей, метрики, материалы или контакты. Вопросы могут запрашивать недостающее.

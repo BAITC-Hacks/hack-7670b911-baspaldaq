@@ -6,7 +6,6 @@ import {
   answerInputSchema,
   analyzeBusinessSources,
   taskAnalysisSchema,
-  mergeConfirmedManualEvidence,
 } from "./taskAnalysis.js";
 
 const source = { id: "description", text: "Нам нужен сервис для магазинов." };
@@ -76,12 +75,10 @@ test("analysis returns at least three adaptive questions for multiple gaps", asy
   assert.ok(result.questions.every(({ targetDimensions }) => targetDimensions.length > 0));
 });
 
-test("confirmed manual card facts retain readiness evidence after a new AI analysis", () => {
-  const merged = mergeConfirmedManualEvidence(
-    { status: "missing", evidence: [] },
-    "BUSINESS_CONNECTION",
-    [{ key: "interactionFormat", value: "Еженедельная встреча", status: "confirmed", provenance: "manual_edit" }],
-  );
-  assert.equal(merged.status, "partial");
-  assert.deepEqual(merged.evidence, [{ sourceId: "manual_edit:interactionFormat", quote: "Еженедельная встреча" }]);
+test("manual sources do not override a missing semantic assessment", async () => {
+  const result = await analyzeBusinessSources([source, { id: "manual_edit:contact", text: "Не знаю" }], [], {
+    generateStructured: async () => validAnalysis(),
+  });
+  assert.equal(result.dimensions.BUSINESS_CONNECTION.status, "missing");
+  assert.deepEqual(result.dimensions.BUSINESS_CONNECTION.evidence, []);
 });
