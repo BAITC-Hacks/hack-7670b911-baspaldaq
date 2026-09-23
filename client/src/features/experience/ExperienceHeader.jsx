@@ -49,7 +49,7 @@ export default function ExperienceHeader({
         type="button"
         onClick={onSoundToggle}
         aria-pressed={soundEnabled}
-        aria-label={soundEnabled ? "Выключить звук запуска" : "Включить звук запуска"}
+        aria-label={soundEnabled ? "Выключить звуковые эффекты" : "Включить звуковые эффекты"}
         title={soundEnabled ? "Выключить звук" : "Включить звук"}
       >
         <HugeiconsIcon

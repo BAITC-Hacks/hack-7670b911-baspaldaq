@@ -1,6 +1,6 @@
 # Baspaldaq
 
-Baspaldaq turns a business problem into a practical task brief. A user submits a description, the API extracts only supported facts with exact source evidence, asks adaptive clarification questions, and produces an editable task card. The readiness score is calculated by the backend from seven weighted dimensions; AI suggestions do not earn points until the user confirms them.
+Baspaldaq turns a business problem into a practical task brief. A user submits a description, sees an immediate readiness score, and improves the brief through a one-question-at-a-time conversation. The API extracts only supported facts with exact source evidence and recalculates the score after each useful answer.
 
 ## Architecture
 
@@ -10,6 +10,14 @@ Baspaldaq turns a business problem into a practical task brief. A user submits a
 - `.env.example` - environment variable template
 
 OpenAI calls run only on the server. The browser communicates with `/api`; in development, Vite proxies those requests to `VITE_API_URL`.
+
+## Readiness And Conversation
+
+The deterministic backend score uses seven fixed weights: context and need 20, data and materials 20, expected result 15, success criteria 15, constraints 10, users 10, and business connection 10. Each dimension earns zero for missing information, half its weight for partial information, and full weight for complete information; the total is rounded to an integer. Levels are `draft` (0-39), `workable` (40-69), `ready` (70-89), and `priority` (90-100).
+
+Grounded evidence from the submitted description contributes immediately. AI output cannot assign points, and each evidence quote is checked against the original user text. After analysis, the client sees one prioritized question at a time. Each reply is checked for relevance; an unclear response gets one simpler rephrase and may then be skipped. A separate question about the project, such as its price, receives its own answer without closing the current clarification question or changing the score. Unknown prices and terms are never invented.
+
+The editor for the ten task fields stays available below the conversation. Sound effects use the supplied `public/launch.mp3` and `public/ai-answer.mp3` files plus short browser-generated tones for accepted answers, rephrasing, skips, and level changes.
 
 ## Local Setup
 

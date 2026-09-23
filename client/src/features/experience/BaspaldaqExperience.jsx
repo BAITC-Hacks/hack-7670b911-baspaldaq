@@ -1,12 +1,19 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Howl } from "howler";
 import ExperienceHeader from "./ExperienceHeader.jsx";
 import TaskInput from "./TaskInput.jsx";
 import WorkspaceOverlay from "./WorkspaceOverlay.jsx";
-import { analyzeTask, answerTaskQuestion, confirmTaskFields } from "../../lib/tasksApi.js";
+import { analyzeTask, answerTaskQuestion, confirmTaskFields, skipTaskQuestion } from "../../lib/tasksApi.js";
+import { createExperienceAudio } from "../../lib/experienceAudio.js";
 
 const SpaceScene = lazy(() => import("./SpaceScene.jsx"));
+
+const LEVEL_TITLES = {
+  draft: "Начало пути",
+  workable: "Уже понятнее",
+  ready: "Почти готово",
+  priority: "Готово к работе",
+};
 
 export default function BaspaldaqExperience() {
   const [phase, setPhase] = useState("entry");
@@ -16,34 +23,32 @@ export default function BaspaldaqExperience() {
   const [task, setTask] = useState(null);
   const [requestError, setRequestError] = useState("");
   const [taskError, setTaskError] = useState("");
+  const [scoreNotice, setScoreNotice] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [flightArrived, setFlightArrived] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [sceneKey, setSceneKey] = useState(0);
-  const soundRef = useRef(null);
+  const audioRef = useRef(null);
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
-    soundRef.current = new Howl({
-      src: ["/launch.mp3"],
-      volume: 0.64,
-      preload: true,
-      html5: true,
-    });
+    audioRef.current = createExperienceAudio();
 
     return () => {
-      soundRef.current?.unload();
-      soundRef.current = null;
+      audioRef.current?.unload();
+      audioRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    audioRef.current?.setMuted(!soundEnabled);
+  }, [soundEnabled]);
 
   const finishFlight = useCallback(() => {
     setFlightArrived(true);
 
-    if (soundRef.current?.playing()) {
-      soundRef.current.fade(soundRef.current.volume(), 0.08, 900);
-    }
+    audioRef.current?.fadeLaunch();
   }, []);
 
   useEffect(() => {
@@ -59,6 +64,7 @@ export default function BaspaldaqExperience() {
     setDraftIdea(normalizedIdea);
     setRequestError("");
     setTaskError("");
+    setScoreNotice("");
     setTask(null);
     setFlightArrived(false);
     setIsAnalyzing(true);
@@ -66,16 +72,14 @@ export default function BaspaldaqExperience() {
     setPhase("flight");
 
     if (soundEnabled && !shouldReduceMotion) {
-      soundRef.current?.stop();
-      soundRef.current?.volume(0.64);
-      soundRef.current?.play();
+      audioRef.current?.play("launch");
     }
 
     try {
       const analyzedTask = await analyzeTask(normalizedIdea);
       setTask(analyzedTask);
     } catch (error) {
-      soundRef.current?.stop();
+      audioRef.current?.stop();
       setRequestError(error.message);
       setPhase("entry");
       setFlightArrived(false);
@@ -85,7 +89,7 @@ export default function BaspaldaqExperience() {
   }
 
   function handleReset() {
-    soundRef.current?.stop();
+    audioRef.current?.stop();
     setPhase("entry");
     setMilestone("ready");
     setTaskIdea("");
@@ -93,6 +97,7 @@ export default function BaspaldaqExperience() {
     setTask(null);
     setRequestError("");
     setTaskError("");
+    setScoreNotice("");
     setFlightArrived(false);
     setIsAnalyzing(false);
     setIsSaving(false);
@@ -105,8 +110,31 @@ export default function BaspaldaqExperience() {
     setIsSaving(true);
     setTaskError("");
     try {
-      setTask(await update(task.id));
-      return true;
+      const result = await update(task.id);
+      if (!result?.task) throw new Error("Сервер не вернул обновлённую задачу.");
+      setTask(result.task);
+      if (result.outcome?.type === "accepted") {
+        const delta = result.outcome.scoreDelta || 0;
+        const levelChanged = result.task.level !== task.level;
+        setScoreNotice(levelChanged
+          ? `Новый уровень: ${LEVEL_TITLES[result.task.readiness.level]}`
+          : delta > 0 ? `+${delta} к полноте задачи` : "Ответ добавлен в описание задачи");
+        window.setTimeout(() => setScoreNotice(""), 3200);
+      }
+      if (soundEnabled) {
+        if (result.outcome?.type === "accepted") {
+          audioRef.current?.play("answer");
+          const hasOpenQuestions = result.task.questions.some(({ status }) => status === "open");
+          audioRef.current?.play(!hasOpenQuestions ? "complete" : result.task.level !== task.level ? "levelUp" : "accepted");
+        } else if (result.outcome?.type === "customer_question") {
+          audioRef.current?.play("customerQuestion");
+        } else if (result.outcome?.type === "retry") {
+          audioRef.current?.play("retry");
+        } else if (result.outcome?.type === "skipped") {
+          audioRef.current?.play("skipped");
+        }
+      }
+      return result;
     } catch (error) {
       setTaskError(error.message);
       return false;
@@ -117,6 +145,10 @@ export default function BaspaldaqExperience() {
 
   function handleAnswer(questionId, answer) {
     return runTaskUpdate((taskId) => answerTaskQuestion(taskId, questionId, answer));
+  }
+
+  function handleSkip(questionId) {
+    return runTaskUpdate((taskId) => skipTaskQuestion(taskId, questionId));
   }
 
   function handleConfirm(fields) {
@@ -215,7 +247,9 @@ export default function BaspaldaqExperience() {
                 task={task}
                 isSaving={isSaving}
                 error={taskError}
+                achievement={scoreNotice}
                 onAnswer={handleAnswer}
+                onSkip={handleSkip}
                 onConfirm={handleConfirm}
                 onReset={handleReset}
               />
